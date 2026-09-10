@@ -177,6 +177,25 @@ shared i = 1
 
 完整 scope/state 模型記錄於 [`state-model.md`](./state-model.md)。
 
+### A-016：`shared` 只允許 module top-level
+
+`shared` 視為 application-global storage，因此只能出現在 `.voil` module 最外層。
+
+允許：
+
+```voil
+shared session = none
+```
+
+禁止：
+
+```voil
+fn test():
+	shared i = 0
+```
+
+也禁止出現在 `if`、`for`、component child block 等任何 nested scope。這避免引入 static-local、recursive invocation、closure、async task 等額外生命週期語意。
+
 ## Draft
 
 ### D-001：變數模型縮減為 `const` / `state` / `shared`
@@ -193,7 +212,7 @@ shared session = none
 
 - `const`：immutable binding；值可以在 runtime 初始化，不等於 compile-time constant。
 - `state`：mutable binding；storage 跟隨 lexical/module instance scope；被 UI/runtime dependency 觀察時由 compiler 產生 reactive update。
-- `shared`：mutable shared binding；跨 declaring module instances 共用 storage。
+- `shared`：mutable shared binding；跨 declaring module instances 共用 storage，且只允許 module top-level。
 - v0.1 不提供 `let` / `var`。
 
 尚需處理一般函式中的「非 reactive mutable local」需求。若確實必要，優先考慮之後加入限定於 function-local 的 `mut`，而不是增加多套一般變數模型。
@@ -241,18 +260,6 @@ param id: Int
 ```
 
 compiler 依 route segment 建立 typed binding；轉換失敗不得把 invalid value 傳入頁面。
-
-### D-006：`shared` v0.1 限制為 module top-level
-
-目前偏好 v0.1 只允許：
-
-```voil
-shared session = none
-```
-
-出現在 module top-level。
-
-暫不允許 function/block-local `shared`，避免提前引入 static-local、recursive-call、closure 與 async task 間共享 storage 的複雜生命週期。
 
 ## Open
 
