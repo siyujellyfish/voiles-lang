@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current component declaration, automatic export, instance scope, slot model and compiler reachability model.
+This document defines the current component declaration, automatic export, instance scope, parameter model, slot model and compiler reachability model.
 
 ## 1. Explicit component declaration
 
@@ -83,7 +83,7 @@ Non-component module/default/named/namespace import semantics remain a separate 
 
 ## 3. Component parameters are the public input surface
 
-Status: `Accepted` baseline.
+Status: `Accepted`.
 
 Component parameters are declared in the component header.
 
@@ -95,27 +95,100 @@ component UserBtn(
 	...
 ```
 
-Semantics:
+Accepted semantics:
 
-- `text` is required because it has no default value;
-- `disabled` is optional because it has a default value;
-- inputs are immutable inside the component unless a later explicit mechanism defines writable input semantics;
-- component invocation uses named arguments with the current Draft `=` separator.
+- a parameter with no default is required;
+- a parameter with a default is optional;
+- component parameters are immutable inside the component;
+- component invocation is named-argument-only;
+- positional component arguments are compile errors;
+- default expressions are evaluated independently for each component invocation;
+- parameter/default initialization proceeds left-to-right;
+- a default expression may reference parameters declared before it, but not parameters declared after it.
+
+Example:
 
 ```voil
-UserBtn(
-	text="Delete",
-	disabled=true
+component UserCard(
+	name: String,
+	title: String = name,
+	disabled: Bool = false
+):
+	...
+```
+
+Valid invocation:
+
+```voil
+UserCard(
+	name="Alice"
 )
 ```
 
-The exact named-argument grammar remains subject to the general call/struct grammar decision.
+Invalid positional invocation:
+
+```voil
+UserCard("Alice") # compile error
+```
+
+A parameter cannot be reassigned inside the component:
+
+```voil
+component UserBtn(text: String):
+	text = "changed" # compile error
+```
+
+When mutable component-owned data is required, it must be copied explicitly into `state`:
+
+```voil
+component Input(value: String):
+	state current = value
+
+	fn clear():
+		current = ""
+```
+
+`state current = value` reads the parameter during component-instance initialization. Later updates to the `value` parameter do not implicitly reset `current`.
+
+Default expressions are evaluated per component invocation:
+
+```voil
+component Panel(id: String = create_id()):
+	...
+
+Panel()
+Panel()
+```
+
+Each invocation evaluates `create_id()` independently.
+
+Defaults may reference preceding parameters:
+
+```voil
+component Avatar(
+	name: String,
+	alt: String = name
+):
+	...
+```
+
+Referencing a later parameter is invalid because parameter initialization is left-to-right:
+
+```voil
+component Avatar(
+	alt: String = name, # compile error
+	name: String
+):
+	...
+```
+
+The surface separator for named arguments remains `=` in all current component syntax. The broader function/struct named-argument grammar is tracked separately, but component calls themselves are now defined as named-only.
 
 ## 4. Component instance scope
 
 Status: `Accepted`.
 
-Every component invocation creates a new component instance scope.
+Every component invocation creates a new component instance scope when that invocation first becomes active.
 
 ```voil
 UserBtn(text="A")
@@ -141,6 +214,45 @@ UserBtn B
 Ordinary `.voil` modules imported from inside a component instance also use that component instance as their importer scope, so ordinary `state` dependencies remain isolated per component instance.
 
 Only module-top-level `shared` declarations intentionally cross component/module instance boundaries.
+
+### 4.1 Reactive parameter updates preserve component identity
+
+Status: `Accepted`.
+
+If a caller expression supplying a component parameter changes reactively, the existing component instance receives the new immutable parameter value. The component is not destroyed and recreated solely because a parameter value changed.
+
+```voil
+state name = "Alice"
+
+UserCard(
+	name=name
+)
+```
+
+After:
+
+```voil
+name = "Bob"
+```
+
+the same `UserCard` instance observes `name` changing from `"Alice"` to `"Bob"` while preserving its component-local `state` and ordinary scoped dependency instances.
+
+This distinction is intentional:
+
+```text
+parameter update
+	-> same component instance
+	-> new immutable input value
+	-> existing local state preserved
+
+new component invocation identity
+	-> new component instance
+	-> component-local state initialized again
+```
+
+Changing a parameter therefore does not rerun component-local `state` initializers. In the earlier `Input(value)` example, a later `value` update does not overwrite `state current` unless component logic explicitly does so.
+
+The remaining identity question is how invocation identity is tracked when components appear in conditional branches or repeated/list UI.
 
 ## 5. Scope inside and outside the component block
 
@@ -369,7 +481,8 @@ componentItem       := bindingDecl
                     | componentCall
                     | slotOutlet
 
-componentCall       := PascalIdentifier callArguments childBlock?
+componentCall       := PascalIdentifier componentCallArguments childBlock?
+componentCallArguments := "(" namedArgumentList? ")"
 childBlock          := ":" NEWLINE INDENT childItem* DEDENT
 childItem           := namedSlotBlock | uiStatement
 namedSlotBlock      := "slot" identifier block
@@ -386,16 +499,20 @@ The module symbol table must reject duplicate component declaration names.
 
 The comma-separated component import list is Accepted. `componentAlias` remains Draft until the alias form is explicitly accepted.
 
+Component parameters form immutable bindings. Component invocation validation must reject positional arguments, missing required parameters, duplicate named arguments and unknown parameter names.
+
+Component parameter defaults are evaluated per invocation from left to right and may only reference parameters already initialized earlier in the parameter list.
+
 Slot child content must retain the caller lexical environment through lowering rather than being rebound as if it were declared inside the callee component.
 
 Semantic validation must also reject duplicate slot outlets, duplicate named-slot provisions, unknown named-slot provisions and default child content passed to a component with no default slot outlet.
 
 ## 10. Remaining component decisions
 
+- component identity in conditional/repeated UI and any key mechanism;
 - slot parameter / scoped-slot model, if needed;
 - slot content type model;
 - callback/event parameter typing;
-- named-argument separator finalization;
 - component import alias syntax finalization (`as` currently recommended);
 - mount/unmount and cleanup lifecycle;
 - whether module-level mutable `state` is legal in modules that also declare components;
