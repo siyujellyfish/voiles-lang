@@ -73,6 +73,7 @@ Core properties:
 12. every component invocation creates an independent component instance scope.
 13. every declared component is automatically exportable; source code does not require an `export` keyword.
 14. unused component declarations are eligible for compiler dead-code elimination.
+15. multiple components from one module use a comma-separated import list.
 
 ---
 
@@ -181,7 +182,7 @@ relative .voil module
 project module path
 ```
 
-The complete alias/named/namespace import grammar remains open.
+Component single/multi-symbol import syntax is defined below. Component alias syntax and non-component default/named/namespace import grammar remain partially open.
 
 `std` is the current canonical alias used by Voiles examples for `@voiles/html-base` so native HTML APIs remain visually distinct from user components.
 
@@ -208,7 +209,7 @@ import b from "./store.voil"
 
 Every `component Name(...):` declaration is automatically part of the module's component export surface. There is no required `export component` syntax.
 
-For v0.1, the simplest import rule is expected to resolve the requested component by declaration name:
+Example module:
 
 ```voil
 # buttons.voil
@@ -219,13 +220,33 @@ component IconBtn(icon: String):
 	...
 ```
 
+A single component may be imported by declaration name:
+
 ```voil
 import UserBtn from "./buttons.voil"
 ```
 
-`UserBtn` selects the automatically exported `component UserBtn` declaration.
+Multiple components from the same module use a comma-separated import list:
 
-Exact aliasing and multi-symbol import syntax remain open. Component names must be unique within one module.
+```voil
+import UserBtn, IconBtn from "./buttons.voil"
+```
+
+Each item resolves the automatically exported component declaration with the same name. Component names must be unique within one module.
+
+Component alias syntax is not yet Accepted. The current recommendation is item-local `as`:
+
+```voil
+import UserBtn as PrimaryBtn, IconBtn as SmallIconBtn from "./buttons.voil"
+```
+
+This also permits mixed aliased and non-aliased items:
+
+```voil
+import UserBtn, IconBtn as SmallIconBtn from "./buttons.voil"
+```
+
+The `as` form is preferred over `=` because `=` is already used by assignment/named arguments, and preferred over `{ ... }` because the import list does not otherwise require wrapper punctuation.
 
 This is called automatic/implicit component export in the language specification. It is not JavaScript's single-default-export rule.
 
@@ -593,6 +614,12 @@ export component UserBtn(...): # not required
 
 A module may contain multiple component declarations. Component declaration names must be unique within that module.
 
+Multiple exported components may be imported together:
+
+```voil
+import UserBtn, IconBtn from "./buttons.voil"
+```
+
 The compiler builds the component dependency graph from imports and invocations. A component declaration that is unreachable from application entry points is eligible for tree-shaking/dead-code elimination.
 
 Component-local initialization occurs only when the component is instantiated, so an unused component should not itself force runtime component state or render output into the bundle.
@@ -799,10 +826,10 @@ Required principles:
 
 ## 20. Current canonical examples
 
-Component:
+Components:
 
 ```voil
-# UserBtn.voil
+# buttons.voil
 import std from "@voiles/html-base"
 
 component UserBtn(
@@ -821,13 +848,17 @@ component UserBtn(
 		)
 		std.p(text)
 		std.p(count)
+
+component IconBtn(icon: String):
+	container:
+		std.button(icon)
 ```
 
 Page:
 
 ```voil
 import std from "@voiles/html-base"
-import UserBtn from "../ui/components/UserBtn.voil"
+import UserBtn, IconBtn from "../ui/components/buttons.voil"
 
 state page_count = 0
 shared session = none
@@ -838,6 +869,7 @@ header:
 main:
 	UserBtn(text="First")
 	UserBtn(text="Second")
+	IconBtn(icon="plus")
 	std.p(page_count)
 ```
 
@@ -864,7 +896,10 @@ moduleItem          := importDecl
 block               := ":" NEWLINE INDENT statement* DEDENT
 comment             := "#" commentText NEWLINE
 
-importDecl          := "import" identifier "from" stringLiteral
+importDecl          := "import" importItem ("," importItem)* "from" stringLiteral
+importItem          := identifier importAlias?
+importAlias         := "as" identifier
+
 functionDecl        := "fn" identifier parameters returnType? block
 componentDecl       := "component" PascalIdentifier parameters block
 
@@ -880,12 +915,15 @@ callArguments       := "(" namedArgumentList? ")"
 namedArgument       := identifier "=" expression
 ```
 
+For component imports, comma-separated `importItem` lists are Accepted. `importAlias` using `as` remains Draft pending explicit acceptance. Non-component symbol-resolution forms remain open even though the surface parser can share the same list structure.
+
 Semantic validation must:
 
 - reject `sharedDecl` outside module top level;
 - require component declaration names to be unique within a module;
 - create an independent scope for each component invocation;
-- expose top-level component declarations automatically to component import resolution.
+- expose top-level component declarations automatically to component import resolution;
+- resolve each component import item by component declaration name before applying any accepted alias.
 
 The grammar must still resolve:
 
@@ -894,7 +932,8 @@ The grammar must still resolve:
 - component child blocks;
 - expression precedence;
 - CSS/style contexts;
-- final multi-component import/alias syntax.
+- component alias finalization;
+- non-component import/export semantics.
 
 ---
 
@@ -909,6 +948,7 @@ The accepted syntax requires:
 - source spans suitable for diagnostics;
 - multiline parenthesized expression continuation;
 - recovery after malformed indentation;
+- comma-separated import item parsing;
 - distinction between structural block, component declaration, standard HTML call, ordinary call and user component call;
 - formatter stability;
 - component symbol indexing per module;
@@ -925,9 +965,10 @@ Parser-blocking or near-blocking priorities:
 2. finalize the remaining `const/state/shared` lowering details and whether a local `mut` form is needed;
 3. finalize named argument separator `=`;
 4. define top-level structural block grammar and valid structural names;
-5. finalize multi-component import and alias syntax;
+5. finalize component import alias syntax (`as` currently recommended);
 6. define component child block grammar;
 7. define expression precedence;
 8. define `@voiles/html-base` minimum API surface;
 9. separately design CSS/layout integration before locking `container(...)` parameters;
-10. define module top-level side-effect policy so tree-shaking guarantees are precise.
+10. define module top-level side-effect policy so tree-shaking guarantees are precise;
+11. define non-component default/named/namespace import semantics.
