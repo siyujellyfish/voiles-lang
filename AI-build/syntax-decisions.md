@@ -141,12 +141,12 @@ fn count_2():
 
 同一 lexical scope 重複宣告同名 identifier 為 compile error；宣告前不可使用。
 
-### A-014：同 importer + 同 resolved path 共用同一 module instance
+### A-014：同 importer scope + 同 resolved path 共用同一 module instance
 
 普通 `.voil` import 採 scoped module instance 模型。
 
 ```text
-same importer + same resolved path
+same importer scope + same resolved path
 -> same module instance
 ```
 
@@ -157,9 +157,9 @@ import a from "./store.voil"
 import b from "./store.voil"
 ```
 
-在同一 importer 內仍指向同一個 resolved module instance，不允許藉由 alias 或重複 import 隱式複製 mutable state。
+在同一 importer scope 內仍指向同一個 resolved module instance，不允許藉由 alias 或重複 import 隱式複製 mutable state。
 
-不同 importer 對同一 `.voil` path 預設取得不同 module instance，因此普通 `state` 不會自然變成 application-global singleton。
+不同 importer scope 對同一 `.voil` path 預設取得不同 module instance，因此普通 `state` 不會自然變成 application-global singleton。
 
 ### A-015：共享性宣告在變數，而非 module/import
 
@@ -196,6 +196,38 @@ fn test():
 
 也禁止出現在 `if`、`for`、component child block 等任何 nested scope。這避免引入 static-local、recursive invocation、closure、async task 等額外生命週期語意。
 
+### A-017：每次 Component invocation 建立獨立 instance scope
+
+元件復用時，每次 invocation 都必須建立新的 component instance scope。
+
+```voil
+UserBtn()
+UserBtn()
+```
+
+若 `UserBtn.voil` 內有：
+
+```voil
+state count = 0
+```
+
+則兩個 invocation 各自擁有獨立的 `count`，修改其中一個不影響另一個。
+
+Component instance 同時視為 importer scope。因此元件內 import 的普通 scoped `.voil` module 也會依 component instance 分離；只有 `shared` declaration 會跨 component instances 共用。
+
+```text
+UserBtn A
+	└─ local state / imported scoped modules A
+
+UserBtn B
+	└─ local state / imported scoped modules B
+
+shared
+	└─ explicit application-global storage
+```
+
+這確保 component reuse 預設具有隔離性，不需要額外 state-cloning 或 component-role annotation。
+
 ## Draft
 
 ### D-001：變數模型縮減為 `const` / `state` / `shared`
@@ -211,8 +243,8 @@ shared session = none
 語意候選：
 
 - `const`：immutable binding；值可以在 runtime 初始化，不等於 compile-time constant。
-- `state`：mutable binding；storage 跟隨 lexical/module instance scope；被 UI/runtime dependency 觀察時由 compiler 產生 reactive update。
-- `shared`：mutable shared binding；跨 declaring module instances 共用 storage，且只允許 module top-level。
+- `state`：mutable binding；storage 跟隨 lexical/module/component instance scope；被 UI/runtime dependency 觀察時由 compiler 產生 reactive update。
+- `shared`：mutable shared binding；跨 declaring module/component instances 共用 storage，且只允許 module top-level。
 - v0.1 不提供 `let` / `var`。
 
 尚需處理一般函式中的「非 reactive mutable local」需求。若確實必要，優先考慮之後加入限定於 function-local 的 `mut`，而不是增加多套一般變數模型。
@@ -287,7 +319,7 @@ CSS 能力與語法範圍過大，暫不把 `container(display=...)` 或自訂 s
 
 ### O-003：Top-level UI block 的完整 grammar
 
-需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 component file 的 root 規則。
+需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 compiler 如何從 `.voil` module 辨識可 render 的 component surface。
 
 ### O-004：Component children / slot model
 
@@ -327,10 +359,9 @@ child content 的型別、named slot、fragment 與 ownership/lifecycle 語意�
 
 需要定義：
 
-- scoped module instance 何時建立與釋放；
+- scoped module/component instance 何時建立與釋放；
 - cyclic imports 的 initialization 順序；
-- `shared` declaration 在 cycle 中的初始化規則；
-- component invocation state identity 與 imported module instance identity 的關係。
+- `shared` declaration 在 cycle 中的初始化規則。
 
 ## Deferred
 
