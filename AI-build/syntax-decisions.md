@@ -17,108 +17,163 @@ Voiles 不採 JSX/TSX template language 路線，也不把 TypeScript parser/typ
 
 `app/` 內檔案路徑即 URL route。一般頁面不寫 `route "/path"`，避免 filesystem 與 source code 出現兩份 path 真相來源。
 
-### A-003：沒有 closing tag
+### A-003：Block 使用 `:` + significant indentation
 
-View syntax 不使用 HTML/XML closing tag。元素與 component 的 child hierarchy 由區塊結構表達。
+所有會開啟 block 的語法以 `:` 明確結束 header，child hierarchy 由縮排決定。
 
-### A-004：View control flow 使用語言本身的 control-flow constructs
+```voil
+fn click_btn():
+	count += 1
 
-條件、迭代與 pattern matching 不設計 `v-if`、`#each`、`{#if}` 等 template-only 第二套語法，而使用 `if`、`for`、`match`。
+main:
+	container():
+		std.h1("Hello")
+```
 
-### A-005：Reactive state 必須明確標示
+不使用 `{}` 作為一般 block delimiter，也不使用 HTML/XML closing tag。
 
-會觸發 UI dependency tracking 的可變資料使用 `state` 宣告。普通 local value 不因被 View 使用就自動變成 reactive state。
+### A-004：`#` 僅作為註解起始符
 
-### A-006：String 不等於可信 HTML
+```voil
+# comment
+```
 
-一般 `String` 插入 View 一律做 text escaping。raw HTML 必須通過明確的安全型別或 unsafe boundary，不能因 interpolation 自動成為 HTML。
+`#` 不再承擔 HTML id shorthand 等其他語意，避免 lexer/context ambiguity。
 
-### A-007：無 `undefined` 語意
+### A-005：Import module specifier 必須使用字串
 
-Voiles 原生型別系統不提供 JavaScript 式 `undefined`。可缺失值使用 `Option<T>` 或其語法糖。
+```voil
+import std from "@voiles/html-base"
+import UserBtn from "../ui/components/UserBtn.voil"
+```
 
-### A-008：Style 由 compiler 解析，不當作任意字串
+套件、Voiles 標準模組與相對路徑都使用 quoted module specifier，避免把 `@`、`/`、`.`、`-` 引入一般 identifier grammar。
 
-即使 style syntax 保留 CSS 接近度，property/value 仍進入 typed style IR，以支援 validation、dead-style elimination 與 codegen 最佳化。
+### A-006：Function declaration 使用 `fn`
+
+```voil
+fn click_btn():
+	count += 1
+```
+
+`fn` 保留 declaration / invocation 的明確界線，避免 `name():` 同時可能代表 function declaration 或 component/block invocation。
+
+### A-007：Page 可直接使用 semantic HTML structural blocks
+
+頁面不要求額外 `view:` wrapper。結構型 HTML node 可以直接作為 block：
+
+```voil
+header:
+	...
+
+main:
+	...
+
+footer:
+	...
+```
+
+這些 block 對應其 HTML semantic element。
+
+### A-008：Native HTML 與 user component 在 source 上明確區分
+
+Native HTML leaf/component API 經由標準 HTML module namespace 使用：
+
+```voil
+import std from "@voiles/html-base"
+
+std.h1("Hello")
+std.p(count)
+```
+
+User component 使用 imported PascalCase symbol：
+
+```voil
+UserBtn(
+	text="just click",
+	onclick=click_btn
+)
+```
+
+`std` 為官方文件與 formatter 建議的 canonical alias；是否進一步保留成語言級 namespace 仍可在 module system 階段評估。
+
+### A-009：Component invocation 採 function-like syntax
+
+User component 不使用 JSX/XML tag：
+
+```voil
+UserBtn(
+	text="just click",
+	onclick=click_btn
+)
+```
+
+Component children 若存在，使用 `:` 開啟 child block，而不是 closing tag。
+
+### A-010：Reactive mutation 必須明確
+
+會觸發 UI dependency tracking 的資料必須使用明確的 reactive binding；普通 immutable binding 不因被 UI 引用就自動變成 reactive state。
+
+### A-011：String 不等於可信 HTML
+
+一般 String 插入 HTML API 一律做 text escaping。raw HTML 必須通過明確的安全型別或 unsafe boundary。
+
+### A-012：無 JavaScript 式 `undefined` 語意
+
+可缺失值使用 `Option<T>` 或其語法糖。Voiles 原生型別系統不以 `undefined` 作一般值。
 
 ## Draft
 
-### D-001：使用 significant indentation 表達 block
+### D-001：變數模型縮減為 `const` / `state`
 
-偏好：
-
-```voil
-view
-	main.page
-		h1 "Hello"
-		p "Welcome"
-```
-
-而不是：
+目前偏好：
 
 ```voil
-view {
-	main.page {
-		h1("Hello")
-		p("Welcome")
-	}
-}
+const title = "Voiles"
+state count = 0
 ```
 
-理由：
+語意候選：
 
-- 與「最小標籤化、程式扁平化」方向一致。
-- View 不需要 closing tag、brace 或 delimiter noise。
-- formatter 可強制唯一結構風格。
+- `const`：immutable binding；值可以在 runtime 初始化，不等於 compile-time constant。
+- `state`：mutable + reactive binding；mutation 會觸發 dependency update。
+- v0.1 不提供 `let` / `var`。
 
-需要驗證：
+尚需處理一般函式中的「非 reactive mutable local」需求。若確實必要，優先考慮之後加入限定於 function-local 的 `mut`，而不是濫用 `state`。
 
-- multiline expression 與 block 的 ambiguity。
-- comment/trivia preservation。
-- formatter 對 tab/space 的 canonical policy。
-- copy/paste 或 generated code 的可預測性。
+### D-002：Named argument / component prop separator 使用 `=`
 
-### D-002：View node 採 `element.class#id(attrs) value` 形式
-
-暫定：
+目前範例統一採：
 
 ```voil
-button.primary(type: "button", disabled: busy) "Save"
+UserBtn(
+	text="just click",
+	onclick=click_btn
+)
 ```
 
-而不是 JSX/XML attribute syntax。
+需要與 assignment、default parameter、struct construction grammar 一起驗證後再升為 Accepted。
 
-理由：attribute grammar 集中於括號內，可避免 element 後方出現大量互相衝突的 token。
+### D-003：`container` 是具體的 block/layout container
 
-### D-003：Component file 採 implicit default component
-
-一個 component `.voil` file 本身即一個 default component，不要求每個檔案重複：
+`container` 不是純抽象、預設 wrapperless 的 layout primitive；概念上更接近 `<div>`，負責建立區塊性布局範圍：
 
 ```voil
-component UserCard
+container(...):
+	...
 ```
 
-預計透過 `prop` + `view` 定義：
+預期預設 lowering 可使用 `<div>` 或同等 block container。只有 compiler 能證明移除 wrapper 不改變 layout、style、event、accessibility 等語意時，才允許最佳化消除。
 
-```voil
-prop user: User
-
-view
-	article.card
-		h2 user.name
-```
-
-是否允許同檔 named component 尚未定案。
+`container(...)` 內的 layout/style 參數仍未定案。
 
 ### D-004：Optional shorthand `T?` 等價於 `Option<T>`
 
-偏好允許：
-
 ```voil
-prop subtitle: String?
+String?
 ```
 
-其語意仍為 explicit `Option<String>`，不是 nullable reference。
+其語意仍為 `Option<String>`，不是 nullable reference。
 
 ### D-005：Route param 可在頁面內宣告型別
 
@@ -128,131 +183,77 @@ prop subtitle: String?
 param id: Int
 ```
 
-compiler 依 route segment 產生 parser 與 typed binding。若 URL segment 無法轉成 `Int`，預設 route 不匹配或進入 route error，而不是把 invalid value 傳入頁面。
-
-### D-006：Style 使用縮排式 CSS-compatible property syntax
-
-暫定：
-
-```voil
-style .card
-	display: grid
-	gap: 1rem
-	padding: 1rem
-```
-
-避免重新命名整套 CSS property，同時由 compiler 做 typed parsing。
-
-### D-007：Layout primitive 可不產生 DOM wrapper
-
-`stack`、`row`、`grid`、`layer` 視為 View/layout primitive，而不是固定對應 `<div>`。compiler 應依語意判斷是否需要實體 container。
+compiler 依 route segment 建立 typed binding；轉換失敗不得把 invalid value 傳入頁面。
 
 ## Open
 
-### O-001：significant indentation 是否正式定案
+### O-001：CSS / Voiles layout integration
 
-這是目前最優先的語法決策，會直接決定 lexer/parser/CST/formatter 架構。
+CSS 能力與語法範圍過大，暫不把 `container(display=...)` 或自訂 style DSL 視為已定案。
 
-### O-002：block delimiter 是否需要 `:`
+需要分別討論：
+
+1. Voiles 是否直接接受 CSS property/value。
+2. layout primitive 是否建立較高階的 typed layout API。
+3. component-local scope 與 native cascade 如何共存。
+4. pseudo selector、media/container query、custom property、animation 等如何保留完整 CSS 能力。
+5. raw/native CSS escape hatch 是否需要，以及 optimizer 能提供哪些保證。
+
+### O-002：一般非 reactive mutable local
+
+若只有 `const` / `state`，algorithmic function 內的 accumulator、loop-local mutation 等需求如何處理仍需確認。
 
 候選：
 
+- 不提供，鼓勵 expression/iterator style。
+- 提供 function-local `mut`。
+- 使用其他受限 mutation construct。
+
+### O-003：Top-level UI block 的完整 grammar
+
+需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 component file 的 root 規則。
+
+### O-004：Component children / slot model
+
+需要定義：
+
 ```voil
-if ready
+UserCard(...):
 	...
 ```
 
-或：
+child content 的型別、named slot、fragment 與 ownership/lifecycle 語意。
 
-```voil
-if ready:
-	...
-```
+### O-005：Event type model
 
-前者更乾淨，後者在 parser 與人類閱讀上更明確。
+`onclick=click_btn` 已作為 component prop 語法可用，但 native DOM event 要由 `std` API 如何暴露、handler signature 如何檢查，仍需設計。
 
-### O-003：attribute separator 使用 `:` 還是 `=`
+### O-006：Standard HTML module surface
 
-候選：
+需要定義 `@voiles/html-base` 實際提供哪些 API：
 
-```voil
-button(type: "button", disabled: busy)
-```
+- leaf HTML elements；
+- attributes；
+- events；
+- escaping；
+- semantic block 與 `std.*` API 的邊界；
+- Web platform versioning。
 
-或：
+### O-007：Import symbol forms
 
-```voil
-button(type = "button", disabled = busy)
-```
+已定案 module path 必須使用字串；default import、named import、namespace import、JS/npm interop 的完整 grammar 尚未定案。
 
-需與 named argument、struct literal 與 style declaration 一起考量，避免三套近似語法。
+### O-008：Async/error syntax
 
-### O-004：事件語法
-
-候選 A：
-
-```voil
-button "Save"
-	on click save
-```
-
-候選 B：
-
-```voil
-button(on.click: save) "Save"
-```
-
-候選 C：
-
-```voil
-button "Save" on click save
-```
-
-目前偏好 A，因 child block 中可以自然容納多事件與 modifier，但需要確認是否造成過度 nesting。
-
-### O-005：two-way binding 是否存在
-
-需要決定是否提供：
-
-```voil
-input bind value: name
-```
-
-或堅持單向 value + event update，避免隱含 mutation。
-
-### O-006：component import/module syntax
-
-待確定 relative module、project-root module、npm/JS interop 是否共享同一個 `use` 語法。
-
-### O-007：style scope 預設
-
-候選：
-
-1. `.voil` style 預設 component-scoped。
-2. route/component style 預設局部，但需要 `global style` 才能跨 component。
-3. 完全採 CSS 原生 cascade，不做 scope rewrite。
-
-目前偏好 1/2，仍需考慮 CSS interoperability。
-
-### O-008：raw CSS escape hatch
-
-需設計不破壞 typed style parser 的 escape hatch，並明確標示 optimizer 無法提供完整保證的範圍。
-
-### O-009：async/error syntax
-
-需決定 `async fn`、`Result<T, E>` propagation、throwing JS API interop 的具體語法。安全模型要求不能把 JS exception 默默偽裝成 typed Result。
-
-### O-010：named slot / child content 模型
-
-需確定 component children 是否使用 `children`、slot 名稱或 typed child parameter，並避免重新引入大量 template tag。
+需決定 `async fn`、`Result<T, E>` propagation、throwing JS API interop 的具體語法。
 
 ## Deferred
 
-### X-001：macro system
+### X-001：Macro system
 
 v0.1 不設計 general-purpose macro。
 
-### X-002：operator overloading
+### X-002：Operator overloading
 
 v0.1 不開放使用者自訂 operator overloading。
 
