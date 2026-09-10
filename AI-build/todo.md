@@ -2,27 +2,77 @@
 
 ## Current phase: syntax specification
 
+### Resolved syntax decisions
+
+- [x] Use `:` for every block opener.
+- [x] Use significant indentation for block hierarchy.
+- [x] Use `#` as comment syntax only.
+- [x] Require quoted import module specifiers.
+- [x] Require `fn` for function declarations.
+- [x] Allow semantic page structure directly at module level without a `view:` wrapper.
+- [x] Use `std.*`-style standard HTML namespace to visually distinguish native HTML APIs from user components.
+- [x] Use function-like PascalCase syntax for user component invocation.
+
 ### P0 — parser-blocking decisions
 
-- [ ] Decide whether indentation is syntax-significant.
-- [ ] Decide whether block openers require `:`.
-- [ ] Decide attribute/named-argument separator (`:` vs `=`).
-- [ ] Define unambiguous grammar for native View node vs component invocation.
-- [ ] Define tokenization rules for indentation, newline and multiline expression continuation.
+- [ ] Define exact `NEWLINE` / `INDENT` / `DEDENT` tokenization rules.
+- [ ] Define multiline parenthesized expression continuation rules.
+- [ ] Confirm named argument separator `=` across components, struct construction and function defaults.
+- [ ] Define unambiguous grammar for structural HTML block vs ordinary block/call.
+- [ ] Define user component child-block grammar.
 - [ ] Define initial expression precedence table.
-- [ ] Define syntax error recovery goals for malformed View/Style blocks.
+- [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
+
+### P0 — binding model
+
+- [ ] Finalize `const` semantics as immutable runtime binding.
+- [ ] Finalize `state` semantics as mutable reactive binding.
+- [ ] Decide whether v0.1 removes `let` / `var` entirely.
+- [ ] Evaluate whether function-local non-reactive mutation requires `mut` or another restricted construct.
+- [ ] Define where `state` declarations are legal: page/component/module/function scope.
+- [ ] Define state initialization and lifecycle semantics.
+
+### P1 — standard HTML surface
+
+- [ ] Define minimum `@voiles/html-base` API.
+- [ ] Define canonical `std` alias policy: convention vs reserved language namespace.
+- [ ] Define the boundary between syntax-level structural blocks (`main:`, `header:`) and `std.*` elements.
+- [ ] Define typed HTML attributes.
+- [ ] Define native event handler types.
+- [ ] Define HTML escaping behavior.
+- [ ] Define boolean attribute lowering.
+
+### P1 — components
+
+- [ ] Define component file/default export model.
+- [ ] Finalize component prop declaration syntax.
+- [ ] Define component children / slot model.
+- [ ] Define component event/callback prop typing.
+- [ ] Define whether multiple components may be declared in one `.voil` file.
+
+### P1 — container and CSS integration
+
+- [ ] Define `container` as concrete block/layout container and default lowering behavior.
+- [ ] Decide whether `container(...)` accepts CSS-like arguments, typed layout arguments, or both.
+- [ ] Decide whether styles are inline, separate `.voil` blocks, imported CSS, or a combination.
+- [ ] Define component-local style scoping policy.
+- [ ] Define CSS custom property support.
+- [ ] Define pseudo class/element support.
+- [ ] Define media query and container query support.
+- [ ] Define animation/keyframe support.
+- [ ] Define modern CSS forward-compatibility policy.
+- [ ] Define raw/native CSS escape hatch.
+- [ ] Define when compiler wrapper elimination is semantically safe.
 
 ### P1 — core language surface
 
-- [ ] Finalize `let` / `var` / `const` / `state` semantics.
 - [ ] Decide whether `T?` is accepted shorthand for `Option<T>`.
 - [ ] Finalize struct construction syntax.
 - [ ] Finalize enum pattern syntax.
 - [ ] Define function return inference policy.
-- [ ] Define event handler syntax.
-- [ ] Decide whether two-way binding exists.
-- [ ] Define component children / slot model.
-- [ ] Define dynamic class syntax.
+- [ ] Define async/error syntax.
+- [ ] Define exhaustive match diagnostics.
+- [ ] Define array/indexing bounds behavior.
 
 ### P1 — routes
 
@@ -31,34 +81,23 @@
 - [ ] Define `_layout.voil`, `_404.voil`, `_error.voil` semantics.
 - [ ] Define typed route-link API so generated URLs cannot omit required params.
 
-### P1 — style language
-
-- [ ] Decide default component style scoping.
-- [ ] Define selector grammar supported by typed Style IR.
-- [ ] Define property/value parser boundaries.
-- [ ] Define raw CSS escape hatch.
-- [ ] Define modern CSS compatibility policy for new properties/functions/at-rules.
-- [ ] Decide how `stack` / `row` / `grid` / `layer` attach layout styles and when wrappers may be removed.
-
 ### P1 — safety model
 
 - [ ] Define `TrustedHtml` boundary.
 - [ ] Define URL-related nominal types or standard-library wrappers.
 - [ ] Define JS/npm import validation boundary.
 - [ ] Define `Result<T, E>` and async/exception interoperability.
-- [ ] Define array/indexing bounds behavior.
-- [ ] Define exhaustive match diagnostics.
 
 ### P2 — module and ecosystem surface
 
-- [ ] Finalize `.voil` import syntax.
+- [ ] Finalize default/named/namespace import forms.
 - [ ] Define project-root import convention without requiring config.
-- [ ] Define npm package import syntax.
+- [ ] Define npm package import semantics.
 - [ ] Define native Web API exposure strategy.
 
 ## Compiler preparation
 
-Do not begin compiler implementation until P0 syntax decisions are resolved or covered by an explicit parser experiment branch.
+Do not begin compiler implementation until the active P0 syntax decisions are resolved or covered by an explicit parser experiment branch.
 
 When implementation begins, add or expand planning documents for:
 
