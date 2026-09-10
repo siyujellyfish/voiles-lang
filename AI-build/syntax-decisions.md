@@ -351,6 +351,51 @@ Caller 提供的 named slot 必須存在於 callee 的 declared outlets；unknow
 
 v0.1 不加入 required slot、重複 projection/cloning 或 scoped-slot parameter 語意。
 
+### A-023：Component parameter 為 immutable named input，prop 更新保留 instance
+
+Component declaration header 定義 immutable input bindings：
+
+```voil
+component UserCard(
+	name: String,
+	title: String = name,
+	disabled: Bool = false
+):
+	...
+```
+
+規則：
+
+- 無 default 的 parameter 為 required；有 default 的 parameter 為 optional；
+- component parameter 在 component 內不可重新 assignment；
+- component invocation 只允許 named arguments，禁止 positional arguments；
+- default expression 每次 component invocation 各自 evaluate；
+- parameter/default initialization 由左至右；default 只能引用已在前面完成初始化的 parameters；
+- 若 component 需要可修改的 input copy，必須明確建立自己的 `state`。
+
+例如：
+
+```voil
+component Input(value: String):
+	state current = value
+```
+
+`current` 在 component instance 建立時以當下 `value` 初始化；之後 caller 更新 `value` 不會自動覆寫 `current`。
+
+若 caller 的 reactive expression 改變 parameter value，既有 component invocation identity 會接收新的 immutable parameter value，而不是因 prop 改變就 destroy/recreate component：
+
+```voil
+state name = "Alice"
+
+UserCard(name=name)
+
+name = "Bob"
+```
+
+結果為同一個 `UserCard` instance 的 `name` 更新成 `"Bob"`，component-local `state` 與普通 scoped dependency instances 保留。
+
+Component identity 在 conditional/repeated UI 中如何追蹤則另行定義。
+
 ## Draft
 
 ### D-001：變數模型縮減為 `const` / `state` / `shared`
@@ -372,9 +417,9 @@ shared session = none
 
 尚需處理一般函式中的「非 reactive mutable local」需求。若確實必要，優先考慮之後加入限定於 function-local 的 `mut`，而不是增加多套一般變數模型。
 
-### D-002：Named argument / component prop separator 使用 `=`
+### D-002：一般 Named argument separator 使用 `=`
 
-目前範例統一採：
+Component invocation 已定案為 named-only 且使用：
 
 ```voil
 UserBtn(
@@ -383,7 +428,7 @@ UserBtn(
 )
 ```
 
-需要與 assignment、default parameter、struct construction grammar 一起驗證後再升為 Accepted。
+`=` 作為 ordinary function named argument、default parameter 與 struct construction 的一致性仍需 grammar 驗證後再升為一般語言層 Accepted。
 
 ### D-003：`container` 是具體的 block/layout container
 
@@ -501,7 +546,8 @@ Component 單/多 symbol import 已有基本語法；仍需定義：
 
 - scoped module/component instance 何時建立與釋放；
 - cyclic imports 的 initialization 順序；
-- `shared` declaration 在 cycle 中的初始化規則。
+- `shared` declaration 在 cycle 中的初始化規則；
+- component identity 在 conditional/repeated UI 中的保留、釋放與 key 規則。
 
 ### O-010：Module top-level side effects / tree-shaking boundary
 
