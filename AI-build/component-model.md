@@ -273,7 +273,51 @@ Card():
 
 The component controls placement, but it does not gain lexical access to caller-local names merely because it renders their slot content. Likewise caller slot content cannot implicitly access component-local `const`, `state` or helper functions unless those values are explicitly exposed through a later slot-parameter mechanism.
 
-Required/optional slot declarations, duplicate named-slot provision, repeated slot outlets, slot parameters and slot type details remain open.
+### 7.2 Slot cardinality
+
+Status: `Accepted` for v0.1.
+
+All declared slot outlets are optional by default. If the caller provides no content for an outlet, that outlet renders nothing.
+
+```voil
+component Card():
+	container:
+		slot
+
+Card() # valid; default slot is empty
+```
+
+A component declaration may contain at most one default `slot` outlet and at most one outlet for each named slot.
+
+Invalid duplicate outlet:
+
+```voil
+component Modal():
+	container:
+		slot header
+		slot header # compile error
+```
+
+A component invocation may provide each named slot at most once.
+
+Invalid duplicate provision:
+
+```voil
+Modal():
+	slot header:
+		std.h2("A")
+
+	slot header:
+		std.h2("B") # compile error
+```
+
+A named slot provided by the caller must match a declared named outlet. Unknown named slots are compile errors.
+
+Likewise, ordinary child content requires the callee to declare a default `slot` outlet. Passing default children to a component without a default outlet is a compile error.
+
+One slot provision may contain any number of child UI statements. Cardinality applies to the slot provision/outlet itself, not to the number of nodes inside it.
+
+Required slots, repeated projection/cloning and scoped-slot parameters are not part of the v0.1 baseline.
 
 ## 8. Unused component elimination
 
@@ -344,11 +388,10 @@ The comma-separated component import list is Accepted. `componentAlias` remains 
 
 Slot child content must retain the caller lexical environment through lowering rather than being rebound as if it were declared inside the callee component.
 
+Semantic validation must also reject duplicate slot outlets, duplicate named-slot provisions, unknown named-slot provisions and default child content passed to a component with no default slot outlet.
+
 ## 10. Remaining component decisions
 
-- required vs optional slot declarations;
-- whether the same named slot may be supplied more than once;
-- whether the same slot outlet may appear more than once and, if so, whether content is cloned or moved;
 - slot parameter / scoped-slot model, if needed;
 - slot content type model;
 - callback/event parameter typing;
