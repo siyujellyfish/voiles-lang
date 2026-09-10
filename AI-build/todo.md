@@ -34,12 +34,18 @@
 - [x] Permit at most one default outlet and one outlet per named slot in a component.
 - [x] Permit each named slot to be provided at most once per invocation.
 - [x] Reject unknown named slots and default children when no default outlet exists.
+- [x] Make component parameters immutable input bindings.
+- [x] Make component invocation named-argument-only.
+- [x] Evaluate component parameter defaults per invocation from left to right.
+- [x] Allow parameter defaults to reference only earlier parameters.
+- [x] Preserve the same component instance and local state when reactive parameter values change.
+- [x] Treat `state local = parameter` as instance initialization rather than automatic two-way synchronization.
 
 ### P0 — parser-blocking decisions
 
 - [ ] Define exact `NEWLINE` / `INDENT` / `DEDENT` tokenization rules.
 - [ ] Define multiline parenthesized expression continuation rules.
-- [ ] Confirm named argument separator `=` across components, struct construction and function defaults.
+- [ ] Confirm named argument separator `=` across ordinary functions and struct construction; component invocation already uses named-only `=` arguments.
 - [ ] Define unambiguous grammar for structural HTML block vs ordinary block/call.
 - [x] Define component declaration grammar baseline: `component PascalName(parameters):`.
 - [x] Define component import-list grammar baseline: `import A, B from "..."`.
@@ -47,6 +53,7 @@
 - [x] Define component child-block/default-slot grammar baseline.
 - [x] Define named slot block / slot outlet grammar baseline.
 - [x] Define slot cardinality validation baseline.
+- [x] Define component call arguments as named-only.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
@@ -59,6 +66,8 @@
 - [x] Define component invocation state identity as independent per invocation.
 - [x] Treat each component instance as an importer scope for ordinary scoped `.voil` dependencies.
 - [x] Preserve caller lexical scope through component slot projection.
+- [x] Preserve component instance/local state across reactive parameter updates.
+- [ ] Define component identity across conditional and repeated/list UI; decide whether an explicit key mechanism is required.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
@@ -85,8 +94,10 @@
 - [x] Define default/named slot surface syntax.
 - [x] Define slot lexical-scope ownership as caller-side.
 - [x] Define v0.1 slot cardinality: optional, single outlet/provision, unknown-slot rejection.
-- [ ] Finalize component parameter / prop declaration semantics.
+- [x] Finalize component parameter / prop semantics: immutable, named-only, per-invocation defaults, left-to-right initialization.
+- [x] Define reactive prop updates as same-instance updates that preserve local state.
 - [ ] Finalize component import alias syntax (`as` currently recommended).
+- [ ] Define component identity/key semantics for conditional and repeated/list rendering.
 - [ ] Define slot parameter / scoped-slot model if needed.
 - [ ] Define slot content type model.
 - [ ] Define component event/callback prop typing.
