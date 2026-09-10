@@ -17,6 +17,7 @@
 - [x] Different import aliases in the same importer do not clone module state.
 - [x] Declare cross-module-instance sharing on the variable with `shared`, not on the module/import.
 - [x] `shared` is mutable by definition and does not require an additional `state` keyword.
+- [x] Restrict `shared` to module top-level only.
 
 ### P0 — parser-blocking decisions
 
@@ -33,7 +34,7 @@
 - [ ] Finalize `const` semantics as immutable runtime binding.
 - [ ] Finalize `state` semantics as mutable scoped binding with compiler-generated reactivity when observed.
 - [ ] Finalize `shared` semantics as mutable storage shared across declaring module instances.
-- [ ] Decide whether v0.1 restricts `shared` to module top-level.
+- [x] Restrict `shared` to module top-level.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
