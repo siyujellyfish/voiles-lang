@@ -78,32 +78,32 @@ Accepted rule:
 Example:
 
 ```voil
-# btn.voil
+# btn_state.voil
 state i = 0
 ```
 
 ```voil
 # a.voil
-import btn from "./btn.voil"
+import btn_state from "./btn_state.voil"
 
-btn.i += 1
-# btn.i == 1
+btn_state.i += 1
+# btn_state.i == 1
 ```
 
 ```voil
 # b.voil
-import btn from "./btn.voil"
+import btn_state from "./btn_state.voil"
 
-btn.i += 1
-# btn.i == 1
+btn_state.i += 1
+# btn_state.i == 1
 ```
 
 Conceptually:
 
 ```text
-btn.voil definition
-	├─ imported from a.voil -> btn instance A -> i = 1
-	└─ imported from b.voil -> btn instance B -> i = 1
+btn_state.voil definition
+	├─ imported from a.voil -> instance A -> i = 1
+	└─ imported from b.voil -> instance B -> i = 1
 ```
 
 Different import aliases do not create extra instances when importer scope and resolved path are identical:
@@ -188,7 +188,14 @@ fn update_session(...):
 	...
 ```
 
-Invalid:
+Invalid inside a component:
+
+```voil
+component Counter():
+	shared i = 0
+```
+
+Invalid inside a function:
 
 ```voil
 fn test():
@@ -206,41 +213,45 @@ The compiler must report these declarations as syntax/semantic errors.
 
 This avoids introducing static-local semantics and avoids ambiguity around recursive calls, closures, async tasks and block lifetime.
 
-## 6. Component instance scope
+## 6. Component declaration and instance scope
 
 Status: `Accepted`.
 
-Every user component invocation creates an independent component instance scope.
-
-Example component:
+A user component is explicitly declared with `component`:
 
 ```voil
-# UserBtn.voil
-state count = 0
+component UserBtn(text: String):
+	state count = 0
 
-fn click():
-	count += 1
+	fn click():
+		count += 1
 
-container():
-	std.button(
-		onclick=click
-	)
+	container:
+		std.button(
+			onclick=click
+		)
+		std.p(text)
+		std.p(count)
 ```
+
+Every component invocation creates an independent component instance scope.
 
 Usage:
 
 ```voil
-UserBtn()
-UserBtn()
+UserBtn(text="A")
+UserBtn(text="B")
 ```
 
 Conceptually:
 
 ```text
 UserBtn invocation A
+	├─ text = "A"
 	└─ state count = 0
 
 UserBtn invocation B
+	├─ text = "B"
 	└─ state count = 0
 ```
 
@@ -251,7 +262,7 @@ A.count = 1
 B.count = 0
 ```
 
-The two component instances must not share ordinary `state` merely because they originate from the same imported component definition.
+The two component instances must not share ordinary `state` merely because they originate from the same component declaration.
 
 A component instance is also an importer scope for ordinary scoped `.voil` dependencies used by that component. Therefore, if the component imports another stateful module, each component instance receives its own dependency module instance unless the dependency uses `shared`.
 
@@ -265,6 +276,9 @@ state value = 0
 ```voil
 # Counter.voil
 import store from "./local_store.voil"
+
+component Counter():
+	...
 ```
 
 Two `Counter()` invocations conceptually produce:
@@ -283,7 +297,31 @@ Within one component instance, importing the same resolved module path more than
 
 `shared` remains the explicit exception: a `shared` declaration points to the same application-global storage regardless of which component instance reaches it.
 
-## 7. State identity summary
+## 7. Component export identity
+
+Status: `Accepted`.
+
+Every top-level `component Name(...):` declaration is automatically part of the module's component export surface. Source code does not need an `export` keyword.
+
+A `.voil` file may contain multiple component declarations, and each declaration has its own component identity.
+
+```voil
+component UserBtn(...):
+	...
+
+component IconBtn(...):
+	...
+```
+
+Component names must be unique within the module.
+
+This rule is called automatic or implicit component export. It should not be modeled as JavaScript's single `default export`, because Voiles permits more than one automatically exportable component declaration per module.
+
+Component definitions that are unreachable from application entry points may be removed by compiler tree-shaking. Their component-local state is never instantiated unless the component itself is invoked.
+
+Exact multi-symbol import/alias syntax remains a module-system decision.
+
+## 8. State identity summary
 
 ```text
 const
@@ -304,7 +342,7 @@ shared
 	intended for explicit application-global state
 ```
 
-## 8. Module / component identity summary
+## 9. Module / component identity summary
 
 ```text
 same importer scope + same resolved path
@@ -316,6 +354,10 @@ different importer scope + same resolved path
 state in that module
 	-> independent per module instance
 
+component declaration
+	-> explicit UI component identity
+	-> automatically exportable
+
 component invocation
 	-> new component instance scope
 	-> independent component-local state
@@ -325,10 +367,11 @@ shared in that module
 	-> same shared storage across all instances
 ```
 
-## 9. Remaining decisions
+## 10. Remaining decisions
 
 - Whether `shared` is always reactive or whether reactivity is generated only when an observer exists. Current preference: mutable declaration with compiler-generated reactivity only when observed.
-- Exact export/access syntax for module bindings.
-- How the compiler identifies the renderable component surface of a `.voil` module without requiring explicit file-role declarations.
+- Exact multi-component import and alias syntax.
+- Exact export/access syntax for non-component module bindings.
 - Cyclic import initialization rules for scoped module instances.
 - Cleanup/lifetime rules when a component/importer/module instance becomes unreachable.
+- Top-level side-effect policy and how it constrains whole-module tree-shaking.
