@@ -26,6 +26,10 @@
 - [x] Automatically expose every top-level component declaration without requiring `export` syntax.
 - [x] Treat unreachable component declarations as compiler tree-shaking / dead-code-elimination candidates.
 - [x] Import multiple component symbols with a comma-separated list: `import A, B from "./c.voil"`.
+- [x] Use component invocation child blocks as default slot content.
+- [x] Use compiler-level `slot` outlets inside component declarations.
+- [x] Support named slot provision with `slot Name:` blocks.
+- [x] Preserve caller lexical scope for default and named slot content.
 
 ### P0 — parser-blocking decisions
 
@@ -36,7 +40,8 @@
 - [x] Define component declaration grammar baseline: `component PascalName(parameters):`.
 - [x] Define component import-list grammar baseline: `import A, B from "..."`.
 - [ ] Finalize component import alias grammar; current recommendation: item-local `as`.
-- [ ] Define user component child-block grammar.
+- [x] Define component child-block/default-slot grammar baseline.
+- [x] Define named slot block / slot outlet grammar baseline.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
@@ -48,6 +53,7 @@
 - [x] Restrict `shared` to module top-level.
 - [x] Define component invocation state identity as independent per invocation.
 - [x] Treat each component instance as an importer scope for ordinary scoped `.voil` dependencies.
+- [x] Preserve caller lexical scope through component slot projection.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
@@ -71,9 +77,15 @@
 - [x] Allow multiple component declarations per `.voil` module.
 - [x] Define unused component declarations as tree-shaking candidates.
 - [x] Define multi-component import list syntax.
+- [x] Define default/named slot surface syntax.
+- [x] Define slot lexical-scope ownership as caller-side.
 - [ ] Finalize component parameter / prop declaration semantics.
 - [ ] Finalize component import alias syntax (`as` currently recommended).
-- [ ] Define component children / slot model.
+- [ ] Define required vs optional slot declarations.
+- [ ] Define duplicate named-slot provision behavior.
+- [ ] Define repeated slot-outlet behavior.
+- [ ] Define slot parameter / scoped-slot model if needed.
+- [ ] Define slot content type model.
 - [ ] Define component event/callback prop typing.
 - [ ] Define component mount/unmount lifetime and cleanup semantics.
 - [ ] Define module top-level side-effect rules so whole-module tree-shaking behavior is deterministic.
