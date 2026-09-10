@@ -49,6 +49,8 @@ Core properties:
 7. native HTML leaf APIs are accessed through the standard HTML namespace.
 8. user components use function-like PascalCase invocation.
 9. no HTML/XML closing tags are used.
+10. ordinary mutable state is scoped; application-global mutation must be explicit with `shared`.
+11. every component invocation creates an independent component instance scope.
 
 ---
 
@@ -60,7 +62,7 @@ A module may contain:
 
 - imports;
 - type declarations;
-- immutable or reactive bindings;
+- `const`, `state` and top-level `shared` bindings;
 - functions;
 - route parameter declarations;
 - semantic HTML structural blocks;
@@ -132,11 +134,9 @@ Multiline comment syntax is not required for the first parser milestone.
 
 ---
 
-## 5. Imports
+## 5. Imports and scoped module identity
 
-Status: `Accepted` for module path quoting; import forms remain partially open.
-
-Module specifiers are always strings:
+Module specifiers are always quoted strings:
 
 ```voil
 import std from "@voiles/html-base"
@@ -156,19 +156,36 @@ The complete default/named/namespace import grammar remains open.
 
 `std` is the current canonical alias used by Voiles examples for `@voiles/html-base` so native HTML APIs remain visually distinct from user components.
 
+Ordinary `.voil` modules use scoped module identity:
+
+```text
+same importer scope + same resolved module path
+	-> same module instance
+
+different importer scope + same resolved module path
+	-> different module instance
+```
+
+Different aliases inside the same importer scope do not clone state.
+
+```voil
+import a from "./store.voil"
+import b from "./store.voil"
+```
+
+`a` and `b` resolve to the same module instance inside that importer scope.
+
 ---
 
 ## 6. Identifiers and naming
 
 Naming style is not currently enforced by the parser.
 
-Examples may use either:
+Examples may use:
 
 ```voil
 click_btn
 ```
-
-or another formatter-defined convention later.
 
 PascalCase remains useful for user component symbols because it visually distinguishes them from native HTML APIs and ordinary functions.
 
@@ -205,42 +222,37 @@ Voiles does not expose JavaScript-style `undefined` as a normal language value.
 
 ---
 
-## 8. Bindings
+## 8. Bindings and scope
 
-Status: `Draft`
+Voiles uses lexical scope with nearest-binding resolution. Name lookup begins in the innermost scope and proceeds outward. Inner declarations may shadow outer declarations. Redeclaration in the same lexical scope is a compile error, and declarations are not visible before their declaration point.
 
-The preferred reduced binding model is:
+The current reduced binding model is:
 
 ```voil
 const title = "Voiles"
 state count = 0
+shared session = none
 ```
 
 ### 8.1 `const`
 
-Proposed semantics:
-
-- immutable binding;
-- may be initialized at runtime;
-- does not imply compile-time evaluation;
-- does not trigger reactive dependency updates.
-
-Example:
+`const` is an immutable runtime binding.
 
 ```voil
 const title: String = "Voiles"
 ```
 
+Semantics:
+
+- immutable;
+- may be initialized from a runtime expression;
+- does not imply compile-time evaluation;
+- follows lexical scope;
+- cannot be reassigned.
+
 ### 8.2 `state`
 
-Proposed semantics:
-
-- mutable binding;
-- reactive;
-- mutation notifies compiler-generated dependency updates;
-- intended primarily for page/component UI state.
-
-Example:
+`state` is mutable scoped storage.
 
 ```voil
 state count: Int = 0
@@ -249,23 +261,55 @@ fn click_btn():
 	count += 1
 ```
 
-### 8.3 Non-reactive mutation
+Semantics:
+
+- mutable;
+- follows lexical scope;
+- storage belongs to the owning function/module/component instance;
+- retains its declared or inferred type after initialization;
+- compiler-generated reactivity is used when UI/runtime dependencies observe it.
+
+Function-local state is recreated for each function invocation:
+
+```voil
+fn count_once() -> Int:
+	state i = 5
+	i += 1
+	return i
+```
+
+Each independent call returns `6`.
+
+### 8.3 `shared`
+
+`shared` is explicit application-global mutable storage.
+
+```voil
+shared session = none
+```
+
+Accepted restrictions:
+
+- mutable by definition;
+- does not require an additional `state` keyword;
+- one shared storage cell per declaration identity across module/component instances;
+- only legal at module top level;
+- compiler-generated reactivity is used when observed.
+
+Invalid:
+
+```voil
+fn test():
+	shared value = 0
+```
+
+`shared` is the explicit escape from normal scoped state isolation.
+
+### 8.4 Non-reactive local mutation
 
 Still open.
 
-Removing `let`/`var` makes the language smaller, but general algorithms can require mutable locals that should not be reactive.
-
-A possible future solution is function-local `mut`:
-
-```voil
-fn sum(values: List<Int>) -> Int:
-	mut total = 0
-	for value in values:
-		total += value
-	return total
-```
-
-This syntax is not accepted yet.
+The current direction may allow function-local `state` to lower to ordinary mutable local storage when no observer exists. A separate `mut` keyword is not accepted yet.
 
 ---
 
@@ -430,9 +474,9 @@ The boundary between syntax-level structural HTML (`main:`) and `std.*` HTML API
 
 ---
 
-## 14. User components
+## 14. User components and component instance state
 
-Status: `Accepted` invocation form.
+Status: `Accepted` invocation and instance-isolation baseline.
 
 ```voil
 UserBtn(
@@ -443,6 +487,49 @@ UserBtn(
 
 User components use function-like invocation rather than JSX/XML.
 
+Every component invocation creates a new component instance scope.
+
+If `UserBtn.voil` contains:
+
+```voil
+state count = 0
+```
+
+then:
+
+```voil
+UserBtn()
+UserBtn()
+```
+
+creates two independent `count` storage cells.
+
+Conceptually:
+
+```text
+UserBtn A
+	└─ count = 0
+
+UserBtn B
+	└─ count = 0
+```
+
+Updating A must not update B unless the component intentionally reaches a `shared` declaration.
+
+A component instance is also an importer scope. Therefore ordinary stateful `.voil` modules imported by the component are independently instantiated per component invocation.
+
+```text
+Counter A
+	└─ local_store instance A
+
+Counter B
+	└─ local_store instance B
+```
+
+Within one component instance, the same resolved module path still maps to one dependency module instance.
+
+`shared` remains application-global across all component instances.
+
 Component children, when supported, use the same block syntax:
 
 ```voil
@@ -450,7 +537,7 @@ Card(title="Profile"):
 	std.p(user.name)
 ```
 
-The child/slot type model is still open.
+The child/slot type model remains open.
 
 ### 14.1 Named arguments
 
@@ -599,6 +686,7 @@ import std from "@voiles/html-base"
 import UserBtn from "../ui/components/UserBtn.voil"
 
 state count = 0
+shared session = none
 
 fn click_btn():
 	count += 1
@@ -618,7 +706,7 @@ main:
 	std.p(count)
 ```
 
-This is the current syntax reference for parser planning. `container(...)` layout arguments and the exact `const/state` model are intentionally not finalized yet.
+`UserBtn()` creates its own component instance scope each time it is invoked. `state` remains scoped to its owner; `shared` is the explicit application-global form.
 
 ---
 
@@ -643,9 +731,10 @@ comment             := "#" commentText NEWLINE
 importDecl          := "import" identifier "from" stringLiteral
 functionDecl        := "fn" identifier parameters returnType? block
 
-bindingDecl         := constDecl | stateDecl
+bindingDecl         := constDecl | stateDecl | sharedDecl
 constDecl           := "const" identifier typeAnnotation? "=" expression
 stateDecl           := "state" identifier typeAnnotation? "=" expression
+sharedDecl          := "shared" identifier typeAnnotation? "=" expression
 
 structuralBlock     := structuralName callArguments? block
 componentCall       := PascalIdentifier callArguments childBlock?
@@ -654,10 +743,11 @@ callArguments       := "(" namedArgumentList? ")"
 namedArgument       := identifier "=" expression
 ```
 
+Semantic validation must reject `sharedDecl` outside module top level.
+
 The grammar must still resolve:
 
 - multiline call indentation;
-- function-local mutation syntax;
 - structural block name table;
 - component child blocks;
 - expression precedence;
@@ -686,10 +776,11 @@ The accepted syntax requires:
 Parser-blocking or near-blocking priorities:
 
 1. finalize multiline indentation/tokenization rules;
-2. finalize `const/state` semantics and whether a local `mut` form is needed;
+2. finalize the remaining `const/state/shared` lowering details and whether a local `mut` form is needed;
 3. finalize named argument separator `=`;
 4. define top-level structural block grammar and valid structural names;
-5. define component child block grammar;
-6. define expression precedence;
-7. define `@voiles/html-base` minimum API surface;
-8. separately design CSS/layout integration before locking `container(...)` parameters.
+5. define how a `.voil` module exposes its renderable component surface without explicit file-role declarations;
+6. define component child block grammar;
+7. define expression precedence;
+8. define `@voiles/html-base` minimum API surface;
+9. separately design CSS/layout integration before locking `container(...)` parameters.
