@@ -81,6 +81,7 @@ Core properties:
 20. non-repeated component identity comes from stable structural invocation position.
 21. repeated component UI requires explicit `key`; implicit index identity is not used.
 22. component-owned resources use one-shot `mount:` with nested `cleanup:`.
+23. ordinary scoped `.voil` modules use one-shot `init:` with nested `cleanup:` and dependency-first teardown.
 
 ---
 
@@ -96,6 +97,7 @@ A module may contain:
 - functions;
 - component declarations;
 - route parameter declarations;
+- module lifecycle `init:` blocks;
 - semantic HTML structural blocks;
 - container blocks;
 - native HTML API calls;
@@ -249,6 +251,56 @@ import UserBtn, IconBtn as SmallIconBtn from "./buttons.voil"
 
 Non-component default/named/namespace import and JS/npm interop import semantics remain open.
 
+### 5.2 Scoped module lifecycle
+
+Status: `Accepted` for v0.1 baseline.
+
+An ordinary scoped `.voil` module instance is owned by its importer scope. Module-owned resources use module-top-level `init:` with nested `cleanup:`:
+
+```voil
+# chat.voil
+state connected = false
+
+init:
+	const socket = open_socket("/chat")
+	connected = true
+
+	cleanup:
+		socket.close()
+```
+
+Lifecycle rules:
+
+- `init:` runs once when a new scoped module instance is created;
+- same importer scope + same resolved path reuses the same module instance and does not rerun `init:`;
+- reactive updates in the importer do not recreate the module instance;
+- module `cleanup:` is valid only inside its enclosing `init:` lifecycle scope;
+- module `cleanup:` may capture lexical bindings declared in that `init:` block;
+- destroying the importer/owner scope destroys its owned ordinary scoped-module instances;
+- each owned module cleanup runs once before that module-local state is released;
+- aliases resolving to one module instance do not duplicate init/cleanup execution.
+
+Ordinary scoped-module teardown is dependency-first/post-order.
+
+```text
+Component
+└─ module A
+   └─ module B
+```
+
+Teardown order:
+
+```text
+module B cleanup
+-> module A cleanup
+-> Component cleanup
+-> Component unmount/state release
+```
+
+Dependencies initialize before owner lifecycle code can rely on them. Cyclic imports remain a separate unresolved initialization/cleanup case because cycles do not form a simple ownership tree.
+
+Ordinary module cleanup does not destroy or reset `shared` storage. Application-global resources intentionally stored in `shared` bindings require a separate application-global lifetime policy.
+
 ---
 
 ## 6. Identifiers and naming
@@ -370,7 +422,8 @@ Accepted restrictions:
 - does not require an additional `state` keyword;
 - one shared storage cell per declaration identity across module/component instances;
 - only legal at module top level;
-- compiler-generated reactivity is used when observed.
+- compiler-generated reactivity is used when observed;
+- lifetime is independent from ordinary scoped-module cleanup.
 
 Invalid:
 
@@ -714,14 +767,18 @@ if show_profile:
 ```text
 false -> true
 	-> create instance
+	-> initialize owned dependency modules
+	-> mount component
 
 true -> false
+	-> cleanup owned dependency modules, dependency-first
 	-> cleanup component-owned mount resources
 	-> unmount instance
 	-> release ordinary local state/dependency instances
 
 false -> true
 	-> create a new instance
+	-> initialize dependencies
 	-> mount new instance
 ```
 
@@ -787,9 +844,9 @@ Lifecycle rules:
 - `cleanup:` is legal only inside `mount:`;
 - `cleanup:` may capture lexical bindings declared in the enclosing mount block;
 - `cleanup:` executes exactly once when that mounted instance is unmounted;
-- conditional branch removal triggers cleanup + unmount;
-- conditional re-entry creates a new instance and runs mount again;
-- key removal/replacement triggers cleanup of the old instance;
+- conditional branch removal triggers dependency-module cleanup, then component cleanup + unmount;
+- conditional re-entry creates a new instance, initializes dependencies and runs mount again;
+- key removal/replacement tears down the old instance using the same dependency-first order;
 - a new key creates/mounts a new instance;
 - v0.1 does not define reactive `effect`, dependency arrays or automatic effect reruns.
 
@@ -805,7 +862,7 @@ mount:
 
 The resource handle can remain lexical to `mount` instead of being stored in component `state`.
 
-Cleanup of ordinary scoped module instances remains a separate module-lifecycle decision.
+Owned ordinary scoped-module dependencies have their own `init:` / `cleanup:` lifecycle and are torn down before the owner component cleanup runs.
 
 ### 14.8 Children and slots
 
@@ -1010,6 +1067,20 @@ Required principles:
 
 ## 20. Current canonical examples
 
+Scoped module:
+
+```voil
+# chat.voil
+state connected = false
+
+init:
+	const socket = open_socket("/chat")
+	connected = true
+
+	cleanup:
+		socket.close()
+```
+
 Components:
 
 ```voil
@@ -1080,7 +1151,7 @@ main:
 	std.p(page_count)
 ```
 
-Independent `UserBtn()` identities create independent component instance state. Reactive parameter updates preserve an existing identity. `Clock` runs its mount logic once per mounted instance and cleans up on unmount. The keyed loop preserves component instances by `user.id`. `shared` remains application-global. `Card` projects caller-authored children without rebinding caller lexical scope.
+Independent `UserBtn()` identities create independent component instance state. Reactive parameter updates preserve an existing identity. `Clock` runs its mount logic once per mounted instance and cleans up on unmount. Scoped `.voil` dependency modules initialize once per owned module instance and tear down dependency-first. The keyed loop preserves component instances by `user.id`. `shared` remains application-global. `Card` projects caller-authored children without rebinding caller lexical scope.
 
 ---
 
@@ -1097,6 +1168,7 @@ moduleItem             := importDecl
                         | functionDecl
                         | componentDecl
                         | paramDecl
+                        | initBlock
                         | structuralBlock
                         | expressionStatement
 
@@ -1128,6 +1200,7 @@ namedSlotBlock         := "slot" identifier block
 slotOutlet             := "slot" identifier?
 
 mountBlock             := "mount" block
+initBlock              := "init" block
 cleanupBlock           := "cleanup" block
 
 keyedForUi             := "for" identifier "in" expression "key" expression block
@@ -1156,10 +1229,13 @@ Semantic validation/runtime lowering must also:
 - type-check v0.1 keys as `String` or `Int`;
 - detect duplicate runtime keys in one repeated UI evaluation;
 - preserve component instance/state across keyed reorder;
-- run `mount` once per new mounted instance identity;
-- allow `cleanup` only nested under `mount`;
-- preserve mount lexical bindings for cleanup capture;
-- run cleanup exactly once at component unmount;
+- run component `mount` once per new mounted instance identity;
+- allow component `cleanup` only nested under `mount` and preserve mount lexical capture;
+- run scoped module `init` once per new ordinary module instance;
+- allow module `cleanup` only inside its `init` lifecycle scope and preserve init lexical capture;
+- reuse module instances/lifecycles for same importer scope + same resolved path;
+- tear down scoped module dependencies recursively before importer/owner cleanup;
+- keep `shared` storage alive independently from ordinary scoped-module teardown;
 - lower slot content without rebinding caller lexical scope;
 - validate slot cardinality and unknown slots;
 - expose top-level component declarations automatically to component import resolution.
@@ -1172,7 +1248,8 @@ The grammar still needs final decisions for:
 - CSS/style contexts;
 - component alias finalization;
 - slot parameter/type details;
-- non-component import/export semantics.
+- non-component import/export semantics;
+- cyclic module initialization/cleanup.
 
 ---
 
@@ -1198,8 +1275,13 @@ Accepted syntax requires:
 - keyed repeated-component identity and reorder preservation;
 - duplicate-key runtime validation;
 - component lifecycle lowering for one-shot mount/cleanup;
+- scoped module lifecycle lowering for one-shot init/cleanup;
+- importer ownership tracking for ordinary scoped-module instances;
+- dependency-first/post-order module teardown before owner component cleanup;
 - cleanup lexical capture preservation;
 - component-local state preservation across reactive parameter updates/reorder;
+- module-instance reuse for repeated same-scope/same-path imports;
+- `shared` lifetime separation from ordinary module teardown;
 - component symbol indexing per module;
 - component dependency graph construction;
 - dead-code elimination eligibility for unreachable component declarations.
@@ -1217,8 +1299,8 @@ Parser-blocking or near-blocking priorities:
 5. finalize general named-argument `=` grammar for ordinary functions/struct construction;
 6. define initial expression precedence;
 7. define `@voiles/html-base` minimum API surface and event typing;
-8. define scoped `.voil` module cleanup/lifetime separate from component `mount` resources;
-9. define cyclic import and `shared` initialization behavior;
+8. define cyclic scoped-module initialization/cleanup and `shared` initialization behavior;
+9. define application-global resource lifetime for resources intentionally stored in `shared` bindings;
 10. separately design CSS/layout integration before locking `container(...)` parameters;
 11. define module top-level side-effect policy so tree-shaking guarantees are precise;
 12. define non-component default/named/namespace import semantics;
