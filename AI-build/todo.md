@@ -54,6 +54,11 @@
 - [x] Do not rerun mount/cleanup for reactive prop/state updates or unchanged-key reorder.
 - [x] Run cleanup on conditional removal and keyed identity removal/replacement.
 - [x] Defer reactive effect/dependency-array semantics beyond the v0.1 lifecycle baseline.
+- [x] Use module-top-level `init:` once per ordinary scoped `.voil` module instance.
+- [x] Use nested module `cleanup:` for module-owned resources.
+- [x] Reuse the same module lifecycle for same importer scope + same resolved path.
+- [x] Cleanup ordinary scoped module dependencies before their importer/owner.
+- [x] Keep `shared` storage lifetime independent from ordinary scoped-module cleanup.
 
 ### P0 — parser-blocking decisions
 
@@ -70,6 +75,7 @@
 - [x] Define component call arguments as named-only.
 - [x] Define keyed repeated-component UI grammar baseline: `for item in items key expression:`.
 - [x] Define component lifecycle block baseline: `mount:` with nested `cleanup:`.
+- [x] Define scoped-module lifecycle block baseline: module-top-level `init:` with nested `cleanup:`.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
@@ -87,11 +93,13 @@
 - [x] Define conditional branch removal/re-entry component lifetime.
 - [x] Define keyed repeated-component identity and duplicate-key behavior.
 - [x] Define component `mount` / nested `cleanup` lifecycle semantics.
+- [x] Define ordinary scoped module `init` / nested `cleanup` lifecycle semantics.
+- [x] Define dependency-first cleanup order for ordinary scoped modules and owner components.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
-- [ ] Define scoped module cleanup when importer/component instances become unreachable.
-- [ ] Define cyclic import initialization for scoped modules and `shared` bindings.
+- [ ] Define cyclic import initialization/cleanup for scoped modules and `shared` bindings.
+- [ ] Define application-global resource lifetime for resources intentionally stored in `shared` bindings.
 
 ### P1 — standard HTML surface
 
@@ -120,6 +128,7 @@
 - [x] Require explicit keys for repeated component UI and preserve instances by key.
 - [x] Define v0.1 key type and duplicate-key runtime validation.
 - [x] Define component mount/cleanup API semantics.
+- [x] Define owned scoped-module cleanup before component cleanup.
 - [ ] Finalize component import alias syntax (`as` currently recommended).
 - [ ] Define slot parameter / scoped-slot model if needed.
 - [ ] Define slot content type model.
