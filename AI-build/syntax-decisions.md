@@ -26,7 +26,7 @@ fn click_btn():
 	count += 1
 
 main:
-	container():
+	container:
 		std.h1("Hello")
 ```
 
@@ -60,7 +60,7 @@ fn click_btn():
 
 ### A-007：Page 可直接使用 semantic HTML structural blocks
 
-頁面不要求額外 `view:` wrapper。結構型 HTML node 可以直接作為 block：
+頁面不要求額外 `view:` wrapper 或第一行 `page` declaration。結構型 HTML node 可以直接作為 block：
 
 ```voil
 header:
@@ -190,6 +190,11 @@ shared session = none
 禁止：
 
 ```voil
+component Counter():
+	shared i = 0
+```
+
+```voil
 fn test():
 	shared i = 0
 ```
@@ -205,7 +210,7 @@ UserBtn()
 UserBtn()
 ```
 
-若 `UserBtn.voil` 內有：
+若 `UserBtn` 內有：
 
 ```voil
 state count = 0
@@ -215,18 +220,48 @@ state count = 0
 
 Component instance 同時視為 importer scope。因此元件內 import 的普通 scoped `.voil` module 也會依 component instance 分離；只有 `shared` declaration 會跨 component instances 共用。
 
-```text
-UserBtn A
-	└─ local state / imported scoped modules A
+### A-018：Component 使用顯式 `component` declaration
 
-UserBtn B
-	└─ local state / imported scoped modules B
+Voiles 不再依 top-level render root 推論一個檔案是否為 component。元件由 declaration 明確表示：
 
-shared
-	└─ explicit application-global storage
+```voil
+component UserBtn(
+	text: String,
+	disabled: Bool = false
+):
+	state count = 0
+	...
 ```
 
-這確保 component reuse 預設具有隔離性，不需要額外 state-cloning 或 component-role annotation。
+Component declaration header 同時定義 component inputs/props，因此目前不需要額外 `input` / `prop` keyword。
+
+`fn` 與 `component` 的角色保持對稱：
+
+```text
+fn
+-> callable logic
+
+component
+-> instantiable UI
+```
+
+一個 `.voil` module 可包含多個 component declarations，名稱在同一 module 內必須唯一。
+
+### A-019：所有 Component declaration 自動 export，未使用元件可移除
+
+所有 top-level `component Name(...):` declaration 自動加入該 module 的 component export surface，不需要額外：
+
+```voil
+export component ...
+```
+
+規格使用 automatic/implicit component export 這個概念，而不是 JavaScript 的 single `default export`，因為一個 `.voil` module 可以有多個自動可匯入的 component。
+
+Compiler 會建立 component dependency graph；從 application entry points 不可達的 component declarations 可進行 tree-shaking / dead-code elimination。
+
+Component-local initialization 只在 invocation 時發生，因此未被使用的 component 不應建立 component state 或 render output。
+
+若 module 另有獨立 top-level side effects，是否能連同整個 module 移除仍由後續 module side-effect policy 決定。
 
 ## Draft
 
@@ -267,7 +302,7 @@ UserBtn(
 `container` 不是純抽象、預設 wrapperless 的 layout primitive；概念上更接近 `<div>`，負責建立區塊性布局範圍：
 
 ```voil
-container(...):
+container:
 	...
 ```
 
@@ -319,7 +354,7 @@ CSS 能力與語法範圍過大，暫不把 `container(display=...)` 或自訂 s
 
 ### O-003：Top-level UI block 的完整 grammar
 
-需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 compiler 如何從 `.voil` module 辨識可 render 的 component surface。
+需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 component block 內可接受哪些 UI roots。
 
 ### O-004：Component children / slot model
 
@@ -349,7 +384,7 @@ child content 的型別、named slot、fragment 與 ownership/lifecycle 語意�
 
 ### O-007：Import symbol forms
 
-已定案 module path 必須使用字串；default import、named import、namespace import、JS/npm interop 的完整 grammar 尚未定案。
+已定案 module path 必須使用字串；component 會自動 export，但多 component module 的精確 import、alias、named/namespace import，以及 JS/npm interop grammar 尚未定案。
 
 ### O-008：Async/error syntax
 
@@ -362,6 +397,10 @@ child content 的型別、named slot、fragment 與 ownership/lifecycle 語意�
 - scoped module/component instance 何時建立與釋放；
 - cyclic imports 的 initialization 順序；
 - `shared` declaration 在 cycle 中的初始化規則。
+
+### O-010：Module top-level side effects / tree-shaking boundary
+
+Component declaration 本身可 tree-shake；但若 `.voil` module 允許任意 top-level side effects，需要定義 optimizer 是否必須保留 module initialization，以及何時可移除整個 module。
 
 ## Deferred
 
