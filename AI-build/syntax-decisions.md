@@ -260,12 +260,50 @@ Accepted 規則：
 - `cleanup:` 可 capture enclosing `mount:` lexical bindings；
 - instance unmount 時 `cleanup:` 執行一次；
 - conditional branch removal、key removal/replacement 都會觸發舊 instance cleanup + unmount；
-- conditional re-entry / new key 建立新 instance 後重新執行 mount；
+- conditional re-entry / new key 建立新 instance後重新執行 mount；
 - v0.1 不提供 reactive `effect`、dependency array 或自動 rerun 語意。
 
-這讓 timer、subscription、listener 等資源的建立與 teardown 保持同一 lexical lifecycle scope，不要求把 resource handle 存入 component `state`。
+### A-026：Scoped module lifecycle 使用 `init` + nested `cleanup`，dependency-first teardown
 
-普通 scoped module instance 的 cleanup/lifetime 仍是獨立 module-system 決策。
+Ordinary scoped `.voil` module instance 由其 importer scope 擁有。Module-owned resource 使用 module-top-level `init:` 與 nested `cleanup:`：
+
+```voil
+state connected = false
+
+init:
+	const socket = open_socket("/chat")
+	connected = true
+
+	cleanup:
+		socket.close()
+```
+
+Accepted 規則：
+
+- 新 scoped module instance 建立時 `init:` 執行一次；
+- same importer scope + same resolved path 會 reuse 同一 module instance，因此不重跑 `init:`；
+- owner reactive update 不重建 module instance；
+- module `cleanup:` 只能位於其 `init:` lifecycle scope，且可 capture `init:` lexical bindings；
+- importer/owner scope 結束時，ordinary owned module instance cleanup 一次並釋放 module-local `state`；
+- 不同 alias 若解析到同一 module instance，不重複 init/cleanup；
+- teardown 採 dependency-first / post-order：nested dependency module 先 cleanup，再 importer module，最後 owner component cleanup；
+- dependency initialize 在 owner lifecycle code 使用它之前完成；
+- ordinary module cleanup 不 destroy/reset `shared` storage；application-global `shared` resource lifetime 另行定義；
+- cyclic import initialization/cleanup 仍是 Open，因 cycle 不形成單純 ownership tree。
+
+概念：
+
+```text
+Component
+└─ module A
+   └─ module B
+
+teardown:
+module B cleanup
+-> module A cleanup
+-> Component cleanup
+-> Component unmount/state release
+```
 
 ## Draft
 
@@ -295,7 +333,7 @@ UserBtn(
 )
 ```
 
-普通 function named arguments 與 struct construction 是否統一使用 `=` 仍需 grammar 驗證。
+普通 function named arguments與 struct construction 是否統一使用 `=` 仍需 grammar 驗證。
 
 ### D-003：`container` 是具體的 block/layout container
 
@@ -367,9 +405,9 @@ Component 單/多 symbol import 已有基本語法；仍需定義 component alia
 
 需決定 `async fn`、`Result<T, E>` propagation 與 throwing JS API interop。
 
-### O-009：Scoped module lifecycle / cycles
+### O-009：Scoped module cycles / global resource lifetime
 
-Component `mount`/`cleanup` 與 component identity lifetime 已定案；仍需定義 ordinary scoped module instance cleanup、cyclic imports 與 `shared` initialization order。
+Ordinary scoped module `init`/`cleanup` ownership lifecycle 已定案。仍需定義 cyclic import initialization/cleanup、`shared` initialization order，以及 application-global resources stored in `shared` bindings 的 teardown policy。
 
 ### O-010：Module top-level side effects / tree-shaking boundary
 
