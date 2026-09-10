@@ -360,9 +360,88 @@ Conditional and keyed identity interact with lifecycle as follows:
 
 v0.1 does not define reactive `effect`, dependency arrays or automatic effect reruns.
 
-Cleanup of ordinary scoped module instances is still a separate module-lifecycle decision.
+## 8. Scoped module initialization and cleanup
 
-## 8. Slot lexical scope
+Status: `Accepted` for v0.1 baseline.
+
+Ordinary scoped `.voil` module instances are owned by their importer scope. Module-owned resources use module-top-level `init:` with an optional nested `cleanup:` block.
+
+```voil
+# chat.voil
+state connected = false
+
+init:
+	const socket = open_socket("/chat")
+	connected = true
+
+	cleanup:
+		socket.close()
+```
+
+Accepted lifecycle semantics:
+
+```text
+new scoped module instance
+	-> init runs once
+
+same importer scope + same resolved path
+	-> reuse the same module instance
+	-> init does not rerun
+
+owner reactive update
+	-> existing module instance is preserved
+	-> init does not rerun
+
+owner/importer scope destruction
+	-> owned dependency modules cleanup recursively
+	-> this module cleanup runs once
+	-> ordinary module-local state is released
+```
+
+`cleanup:` in a module lifecycle is legal only inside the enclosing module `init:` block and may capture lexical bindings declared by that `init:` block.
+
+Different aliases that resolve to the same scoped module instance do not duplicate lifecycle execution: the instance initializes once and cleans up once.
+
+### 8.1 Dependency teardown order
+
+Status: `Accepted`.
+
+Scoped module ownership is torn down in dependency-first/post-order sequence.
+
+```text
+Component
+└─ module A
+   └─ module B
+```
+
+Teardown order:
+
+```text
+module B cleanup
+-> module A cleanup
+-> Component cleanup
+-> Component unmount/state release
+```
+
+The same rule applies recursively through deeper ordinary scoped-module dependency chains. This makes dependency lifetime strictly nested inside owner lifetime.
+
+Dependencies initialize before owner lifecycle code can rely on them. Cyclic import initialization/cleanup remains a separate unresolved case because a cycle does not form a simple ownership tree.
+
+### 8.2 `shared` lifetime is independent
+
+Ordinary scoped-module cleanup does not destroy or reset `shared` storage.
+
+```voil
+# store.voil
+shared user = none
+state local_cache = none
+```
+
+Destroying one ordinary `store.voil` instance releases that instance's `local_cache`, but the application-global `shared user` cell remains alive for other module/component instances.
+
+A `shared` binding that owns an application-global external resource requires a separate application-global resource-lifetime policy. v0.1 ordinary module `cleanup:` must not infer ownership of such shared resources.
+
+## 9. Slot lexical scope
 
 Status: `Accepted`.
 
@@ -397,7 +476,7 @@ The component cannot implicitly access caller-local bindings through slot projec
 
 Any future scoped-slot parameters must explicitly define values crossing that boundary.
 
-## 9. State and identity summary
+## 10. State and identity summary
 
 ```text
 const
@@ -419,17 +498,26 @@ shared
 	mutable
 	module top-level only
 	one application-global cell per declaration identity
+	lifetime is independent from ordinary scoped-module cleanup
+
+scoped module instance
+	owned by importer scope
+	init once per new instance
+	cleanup once when owner lifetime ends
+	dependencies cleanup before importer/owner
 
 stable structural component position
 	-> preserve instance across reactive updates
 
 conditional removal
+	-> cleanup owned scoped modules dependency-first
 	-> cleanup component-owned mount resources
 	-> unmount
 	-> release ordinary instance-local state/dependencies
 
 conditional re-entry
 	-> new instance
+	-> initialize dependencies
 	-> mount
 
 repeated UI
@@ -443,12 +531,12 @@ slot content
 	callee controls placement only
 ```
 
-## 10. Remaining decisions
+## 11. Remaining decisions
 
 - Whether `shared` is always reactive or reactivity is generated only when an observer exists. Current preference: compiler-generated reactivity only when observed.
 - Component import alias syntax.
 - Exact export/access syntax for non-component module bindings.
 - Slot parameter/content typing if a concrete use case requires it.
-- Cyclic import initialization for scoped module instances and `shared` bindings.
-- Cleanup/lifetime rules for ordinary scoped module instances when their importer scope becomes unreachable.
+- Cyclic import initialization/cleanup for scoped module instances and `shared` bindings.
+- Application-global resource lifecycle for resources intentionally stored in `shared` bindings.
 - Module top-level side-effect policy and whole-module tree-shaking boundary.
