@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing, component parameters/instance state and slot lexical scope.
+This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing, component parameters/instance state, component identity and slot lexical scope.
 
 ## 1. Lexical scope
 
@@ -337,7 +337,53 @@ component Input(value: String):
 
 uses the initial `value` to initialize `current`; a later update to the `value` parameter does not implicitly overwrite `current`.
 
-The remaining runtime identity problem is how the compiler/runtime distinguishes an existing invocation from a new invocation when UI structure changes through conditionals or repeated/list rendering.
+### 6.2 Structural identity, conditionals and keyed repeated UI
+
+Status: `Accepted`.
+
+Outside repeated UI, a component invocation uses its stable structural invocation position as its runtime identity. Reactive changes to values used at that position preserve the same component instance.
+
+A conditional branch is an explicit lifetime boundary. When a branch becomes inactive, component instances reachable only from that branch are unmounted and their ordinary instance-local state/dependency instances are released. Re-entering the branch creates new instances.
+
+```voil
+if show_profile:
+	UserCard(
+		name=user.name
+	)
+```
+
+Conceptually:
+
+```text
+false -> true
+	-> create instance
+
+true -> false
+	-> unmount instance
+	-> release local state/dependencies
+
+false -> true
+	-> create new instance
+```
+
+Repeated UI that creates component instances must define explicit iteration identity using `key`:
+
+```voil
+for user in users key user.id:
+	UserCard(
+		user=user
+	)
+```
+
+Voiles does not silently use the iteration index/list position as component identity. A component-instantiating UI loop without `key` is therefore a compile error in v0.1.
+
+Stable keys preserve instance state across reorders. If items keyed `A`, `B`, `C` reorder to `C`, `A`, `B`, the runtime preserves all three component instances and only changes rendered ordering.
+
+If a key disappears, its instance is unmounted. If a new key appears, a new instance is created. If an item's key changes, that is an identity change: the old instance is removed and a new instance is initialized.
+
+For v0.1, accepted key types are stable scalar `String` or `Int` values. Duplicate keys within one repeated UI evaluation are invalid. Because uniqueness may depend on runtime data, duplicate-key detection is a runtime validation error rather than an ambiguous reuse heuristic.
+
+Ordinary algorithmic loops that do not instantiate repeated UI components do not require `key`.
 
 ## 7. Component export identity
 
@@ -416,7 +462,7 @@ state
 	lexical scope
 	storage belongs to current scope/module/component instance
 	different importer scopes may receive independent module state
-	different component invocations receive independent component state
+	different component invocation identities receive independent component state
 
 shared
 	mutable
@@ -445,10 +491,21 @@ component declaration
 	-> explicit UI component identity
 	-> automatically exportable
 
-new component invocation identity
-	-> new component instance scope
-	-> component-local state initialized
-	-> independent ordinary imported module state
+stable structural invocation position
+	-> same component instance across reactive value updates
+
+conditional branch removal
+	-> unmount component instance
+	-> release ordinary local state/dependency instances
+
+conditional branch re-entry
+	-> new component instance
+
+repeated UI
+	-> explicit key required when components are instantiated
+	-> same key preserves instance across reorder
+	-> removed/changed key removes old identity
+	-> new key creates new identity
 
 parameter update on existing invocation identity
 	-> same component instance
@@ -464,10 +521,9 @@ shared in that module
 ## 11. Remaining decisions
 
 - Whether `shared` is always reactive or whether reactivity is generated only when an observer exists. Current preference: mutable declaration with compiler-generated reactivity only when observed.
-- Component identity in conditional/repeated UI and any explicit key mechanism.
 - Component import alias syntax.
 - Exact export/access syntax for non-component module bindings.
 - Slot parameters/content typing if a concrete use case requires them.
 - Cyclic import initialization rules for scoped module instances.
-- Cleanup/lifetime rules when a component/importer/module instance becomes unreachable.
+- Exact cleanup hook/API semantics when a component/importer/module instance becomes unreachable.
 - Top-level side-effect policy and how it constrains whole-module tree-shaking.
