@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current component declaration, default export, instance scope and compiler reachability model.
+This document defines the current component declaration, automatic export, instance scope and compiler reachability model.
 
 ## 1. Explicit component declaration
 
@@ -29,45 +29,39 @@ component UserBtn(
 		std.p(count)
 ```
 
-The compiler does not need to infer whether an arbitrary `.voil` module is a component from its render statements.
+The compiler does not infer whether an arbitrary `.voil` module is a component from its render statements.
 
 `fn` declares callable logic; `component` declares instantiable UI.
 
-## 2. One default component per file
+## 2. Automatic component export
 
-Status: `Accepted` for v0.1.
+Status: `Accepted`.
 
-A `.voil` module may declare at most one top-level `component` in v0.1.
+Every top-level `component Name(...):` declaration is automatically part of the module's component export surface. No explicit `export` keyword is required.
 
-That component is automatically the module's default component export. No explicit `export` keyword is required.
-
-Example file:
-
-```text
-ui/UserBtn.voil
-```
+A `.voil` module may contain multiple component declarations:
 
 ```voil
-import std from "@voiles/html-base"
-
 component UserBtn(text: String):
 	std.button(text)
+
+component IconBtn(icon: String):
+	std.button(icon)
 ```
 
-Consumer:
+Both components are automatically exportable. Their names must be unique within the module.
+
+This is intentionally called automatic or implicit component export rather than JavaScript-style `default export`: JavaScript permits only one default export per module, while Voiles allows multiple automatically exportable component declarations.
+
+For the current v0.1 direction, importing a component by declaration name is the minimum required behavior:
 
 ```voil
-import UserBtn from "../ui/UserBtn.voil"
-
-main:
-	UserBtn(text="Click")
+import UserBtn from "./buttons.voil"
 ```
 
-The imported identifier is the local alias for the module's default component export.
+This resolves the automatically exported `component UserBtn` declaration in `buttons.voil`.
 
-The component name should normally match the filename for readability and diagnostics, but filename matching is not currently a parser requirement.
-
-Named component exports and multiple top-level component declarations are deferred until a concrete requirement exists.
+Exact aliasing and multi-symbol import syntax remain open.
 
 ## 3. Component parameters are the public input surface
 
@@ -150,23 +144,40 @@ Current interpretation:
 - `const` / `state` declared inside `component` belong to the component instance scope;
 - ordinary module-level declarations outside `component` retain module-level lexical semantics.
 
-Whether module-level mutable `state` should be permitted in a module that also declares a component remains open. Component-local mutable state should normally be declared inside the component block so instance isolation is explicit.
+Whether module-level mutable `state` should be permitted in a module that also declares components remains open. Component-local mutable state should normally be declared inside the component block so instance isolation is explicit.
 
-## 6. Default export and module API
+## 6. Component export and module API
 
-The default component export does not imply that every module-level binding becomes public.
+Automatic component export does not imply that every module-level binding becomes public.
 
 The exact export/access model for helper functions, types and bindings is still open.
 
-For v0.1 component imports, the minimum required behavior is:
+For component imports, the minimum required behavior is declaration-name resolution:
+
+```voil
+# UserBtn.voil
+component UserBtn(text: String):
+	...
+```
 
 ```voil
 import UserBtn from "./UserBtn.voil"
 ```
 
-which imports the module's single default component.
-
 No `export component` syntax is required.
+
+For a multi-component module:
+
+```voil
+# buttons.voil
+component UserBtn(...):
+	...
+
+component IconBtn(...):
+	...
+```
+
+both declarations are public component symbols. The final syntax for importing several symbols at once or importing under aliases remains open.
 
 ## 7. Unused component elimination
 
@@ -181,12 +192,16 @@ route entrypoints
 	↓
 reachable imports/components
 	↓
+component dependency graph
+	↓
 codegen set
 ```
 
 An imported component that is never invoked can also be removed when removing it preserves module semantics.
 
-However the compiler must not blindly remove an entire module only because its default component is unused. If module-top-level initialization can have observable side effects, those effects must be preserved unless effect analysis proves the module itself removable.
+Component-local initialization occurs only when the component is instantiated. Therefore an unused component declaration must not create component state, lifecycle work or render output merely because its containing module exists.
+
+However the compiler must not blindly remove an entire module only because all of its component declarations are unused. If module-top-level initialization has observable side effects, those effects must be preserved unless effect analysis proves the module itself removable.
 
 Therefore dead-code elimination is semantics-preserving, not merely name-based.
 
@@ -194,7 +209,7 @@ Long-term direction:
 
 - prefer analyzable or effect-free top-level initialization;
 - remove unreachable component bodies;
-- remove unreachable helper functions/types/constants;
+- remove unreachable helper functions/types/constants when safe;
 - remove entire modules only when no observable top-level behavior remains.
 
 ## 8. Initial grammar sketch
@@ -218,13 +233,15 @@ componentCall     := PascalIdentifier callArguments childBlock?
 
 `sharedDecl` is excluded from `componentItem` because `shared` is module-top-level only.
 
+The module symbol table must reject duplicate component declaration names.
+
 ## 9. Remaining component decisions
 
 - component children / slot model;
 - callback/event parameter typing;
 - named-argument separator finalization;
+- exact multi-component import and alias syntax;
 - mount/unmount and cleanup lifecycle;
-- whether module-level mutable `state` is legal in component modules;
+- whether module-level mutable `state` is legal in modules that also declare components;
 - helper function/type export rules;
-- exact reachability/effect model used by tree-shaking;
-- whether named or multiple component exports are ever added after v0.1.
+- exact reachability/effect model used by tree-shaking.
