@@ -19,7 +19,7 @@
 - [x] `shared` is mutable by definition and does not require an additional `state` keyword.
 - [x] Restrict `shared` to module top-level only.
 - [x] Every component invocation creates an independent component instance scope.
-- [x] Component-local ordinary `state` is isolated per invocation.
+- [x] Component-local ordinary `state` is isolated per invocation identity.
 - [x] Ordinary scoped modules imported by a component are also isolated per component instance; `shared` remains global.
 - [x] Declare components explicitly with `component Name(...):`.
 - [x] Allow multiple component declarations in one `.voil` module.
@@ -40,6 +40,14 @@
 - [x] Allow parameter defaults to reference only earlier parameters.
 - [x] Preserve the same component instance and local state when reactive parameter values change.
 - [x] Treat `state local = parameter` as instance initialization rather than automatic two-way synchronization.
+- [x] Use structural invocation position as component identity outside repeated UI.
+- [x] Treat conditional branch removal as component unmount/state release; re-entry creates a new instance.
+- [x] Require explicit `key` for repeated UI that instantiates components.
+- [x] Do not use implicit list index/position as component identity.
+- [x] Preserve keyed component instances across reorder.
+- [x] Treat removed/changed keys as identity removal/replacement.
+- [x] Restrict v0.1 component keys to `String` / `Int`.
+- [x] Treat duplicate runtime keys as deterministic runtime errors.
 
 ### P0 — parser-blocking decisions
 
@@ -54,6 +62,7 @@
 - [x] Define named slot block / slot outlet grammar baseline.
 - [x] Define slot cardinality validation baseline.
 - [x] Define component call arguments as named-only.
+- [x] Define keyed repeated-component UI grammar baseline: `for item in items key expression:`.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
@@ -63,15 +72,18 @@
 - [ ] Finalize `state` semantics as mutable scoped binding with compiler-generated reactivity when observed.
 - [ ] Finalize `shared` semantics as mutable storage shared across declaring module/component instances.
 - [x] Restrict `shared` to module top-level.
-- [x] Define component invocation state identity as independent per invocation.
+- [x] Define component invocation state identity as independent per invocation identity.
 - [x] Treat each component instance as an importer scope for ordinary scoped `.voil` dependencies.
 - [x] Preserve caller lexical scope through component slot projection.
 - [x] Preserve component instance/local state across reactive parameter updates.
-- [ ] Define component identity across conditional and repeated/list UI; decide whether an explicit key mechanism is required.
+- [x] Define structural component identity for non-repeated UI.
+- [x] Define conditional branch removal/re-entry component lifetime.
+- [x] Define keyed repeated-component identity and duplicate-key behavior.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
-- [ ] Define module/component-instance creation and cleanup lifecycle.
+- [ ] Define explicit mount/unmount cleanup hooks/API.
+- [ ] Define scoped module cleanup when importer/component instances become unreachable.
 - [ ] Define cyclic import initialization for scoped modules and `shared` bindings.
 
 ### P1 — standard HTML surface
@@ -96,12 +108,15 @@
 - [x] Define v0.1 slot cardinality: optional, single outlet/provision, unknown-slot rejection.
 - [x] Finalize component parameter / prop semantics: immutable, named-only, per-invocation defaults, left-to-right initialization.
 - [x] Define reactive prop updates as same-instance updates that preserve local state.
+- [x] Define structural identity for static component call sites.
+- [x] Define conditional unmount/re-entry instance behavior.
+- [x] Require explicit keys for repeated component UI and preserve instances by key.
+- [x] Define v0.1 key type and duplicate-key runtime validation.
 - [ ] Finalize component import alias syntax (`as` currently recommended).
-- [ ] Define component identity/key semantics for conditional and repeated/list rendering.
 - [ ] Define slot parameter / scoped-slot model if needed.
 - [ ] Define slot content type model.
 - [ ] Define component event/callback prop typing.
-- [ ] Define component mount/unmount lifetime and cleanup semantics.
+- [ ] Define component mount/unmount cleanup API semantics.
 - [ ] Define module top-level side-effect rules so whole-module tree-shaking behavior is deterministic.
 
 ### P1 — container and CSS integration
