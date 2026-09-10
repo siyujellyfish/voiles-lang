@@ -38,6 +38,25 @@ main:
 	std.p(count)
 ```
 
+Component declarations are explicit:
+
+```voil
+component UserBtn(
+	text: String,
+	disabled: Bool = false
+):
+	state count = 0
+
+	fn click():
+		count += 1
+
+	container:
+		std.button(
+			disabled=disabled,
+			onclick=click
+		)
+```
+
 Core properties:
 
 1. `:` opens a block.
@@ -45,12 +64,15 @@ Core properties:
 3. `#` is comment syntax only.
 4. import module paths are always quoted strings.
 5. function declarations use `fn`.
-6. semantic page structure may appear directly at module level.
-7. native HTML leaf APIs are accessed through the standard HTML namespace.
-8. user components use function-like PascalCase invocation.
-9. no HTML/XML closing tags are used.
-10. ordinary mutable state is scoped; application-global mutation must be explicit with `shared`.
-11. every component invocation creates an independent component instance scope.
+6. component declarations use `component`.
+7. semantic page structure may appear directly at module level.
+8. native HTML leaf APIs are accessed through the standard HTML namespace.
+9. user components use function-like PascalCase invocation.
+10. no HTML/XML closing tags are used.
+11. ordinary mutable state is scoped; application-global mutation must be explicit with `shared`.
+12. every component invocation creates an independent component instance scope.
+13. every declared component is automatically exportable; source code does not require an `export` keyword.
+14. unused component declarations are eligible for compiler dead-code elimination.
 
 ---
 
@@ -64,11 +86,14 @@ A module may contain:
 - type declarations;
 - `const`, `state` and top-level `shared` bindings;
 - functions;
+- component declarations;
 - route parameter declarations;
 - semantic HTML structural blocks;
 - container blocks;
 - native HTML API calls;
 - user component invocations.
+
+Voiles does not require file-role markers such as `page`, `module` or `component` on the first line. A component is identified explicitly by its `component` declaration.
 
 Files under `app/` may become routes automatically.
 
@@ -107,8 +132,12 @@ Voiles uses significant indentation. Every block opener ends with `:`.
 fn greet(name: String) -> String:
 	return "Hello {name}"
 
+component Greeting(name: String):
+	container:
+		std.p(name)
+
 main:
-	container():
+	container:
 		std.h1("Hello")
 ```
 
@@ -152,7 +181,7 @@ relative .voil module
 project module path
 ```
 
-The complete default/named/namespace import grammar remains open.
+The complete alias/named/namespace import grammar remains open.
 
 `std` is the current canonical alias used by Voiles examples for `@voiles/html-base` so native HTML APIs remain visually distinct from user components.
 
@@ -175,6 +204,31 @@ import b from "./store.voil"
 
 `a` and `b` resolve to the same module instance inside that importer scope.
 
+### 5.1 Component imports
+
+Every `component Name(...):` declaration is automatically part of the module's component export surface. There is no required `export component` syntax.
+
+For v0.1, the simplest import rule is expected to resolve the requested component by declaration name:
+
+```voil
+# buttons.voil
+component UserBtn(text: String):
+	...
+
+component IconBtn(icon: String):
+	...
+```
+
+```voil
+import UserBtn from "./buttons.voil"
+```
+
+`UserBtn` selects the automatically exported `component UserBtn` declaration.
+
+Exact aliasing and multi-symbol import syntax remain open. Component names must be unique within one module.
+
+This is called automatic/implicit component export in the language specification. It is not JavaScript's single-default-export rule.
+
 ---
 
 ## 6. Identifiers and naming
@@ -187,7 +241,7 @@ Examples may use:
 click_btn
 ```
 
-PascalCase remains useful for user component symbols because it visually distinguishes them from native HTML APIs and ordinary functions.
+PascalCase remains the preferred component naming convention because it visually distinguishes user components from native HTML APIs and ordinary functions.
 
 ---
 
@@ -297,6 +351,11 @@ Accepted restrictions:
 - compiler-generated reactivity is used when observed.
 
 Invalid:
+
+```voil
+component Counter():
+	shared value = 0
+```
 
 ```voil
 fn test():
@@ -409,7 +468,7 @@ Control flow should be usable directly inside page/component UI hierarchy rather
 
 Status: `Accepted` baseline.
 
-A page does not require a `view:` wrapper.
+A page does not require a `view:` wrapper or first-line `page` declaration.
 
 ```voil
 header:
@@ -474,22 +533,86 @@ The boundary between syntax-level structural HTML (`main:`) and `std.*` HTML API
 
 ---
 
-## 14. User components and component instance state
+## 14. User components
 
-Status: `Accepted` invocation and instance-isolation baseline.
+Status: `Accepted` declaration, automatic export, invocation and instance-isolation baseline.
+
+### 14.1 Declaration
+
+A component is declared explicitly:
+
+```voil
+component UserBtn(
+	text: String,
+	disabled: Bool = false
+):
+	state count = 0
+
+	fn click():
+		count += 1
+
+	container:
+		std.button(
+			disabled=disabled,
+			onclick=click
+		)
+
+		std.p(text)
+		std.p(count)
+```
+
+The component declaration header defines its input parameters. A separate `input` or `prop` declaration keyword is not currently required.
+
+Conceptually:
+
+```text
+fn
+	-> callable logic
+
+component
+	-> instantiable UI
+```
+
+### 14.2 Automatic component export
+
+Every top-level component declaration is automatically exportable from its `.voil` module.
+
+```voil
+component UserBtn(...):
+	...
+
+component IconBtn(...):
+	...
+```
+
+No additional syntax is required:
+
+```voil
+export component UserBtn(...): # not required
+```
+
+A module may contain multiple component declarations. Component declaration names must be unique within that module.
+
+The compiler builds the component dependency graph from imports and invocations. A component declaration that is unreachable from application entry points is eligible for tree-shaking/dead-code elimination.
+
+Component-local initialization occurs only when the component is instantiated, so an unused component should not itself force runtime component state or render output into the bundle.
+
+If the containing module has independent top-level side effects, removing an unused component does not by itself authorize removing those unrelated side effects. Top-level side-effect policy remains a separate module-system concern.
+
+### 14.3 Invocation and instance state
+
+User components use function-like invocation rather than JSX/XML:
 
 ```voil
 UserBtn(
 	text="just click",
-	onclick=click_btn
+	disabled=false
 )
 ```
 
-User components use function-like invocation rather than JSX/XML.
-
 Every component invocation creates a new component instance scope.
 
-If `UserBtn.voil` contains:
+If `UserBtn` contains:
 
 ```voil
 state count = 0
@@ -498,8 +621,8 @@ state count = 0
 then:
 
 ```voil
-UserBtn()
-UserBtn()
+UserBtn(text="A")
+UserBtn(text="B")
 ```
 
 creates two independent `count` storage cells.
@@ -508,9 +631,11 @@ Conceptually:
 
 ```text
 UserBtn A
+	├─ text = "A"
 	└─ count = 0
 
 UserBtn B
+	├─ text = "B"
 	└─ count = 0
 ```
 
@@ -518,17 +643,11 @@ Updating A must not update B unless the component intentionally reaches a `share
 
 A component instance is also an importer scope. Therefore ordinary stateful `.voil` modules imported by the component are independently instantiated per component invocation.
 
-```text
-Counter A
-	└─ local_store instance A
-
-Counter B
-	└─ local_store instance B
-```
-
 Within one component instance, the same resolved module path still maps to one dependency module instance.
 
 `shared` remains application-global across all component instances.
+
+### 14.4 Children
 
 Component children, when supported, use the same block syntax:
 
@@ -539,14 +658,14 @@ Card(title="Profile"):
 
 The child/slot type model remains open.
 
-### 14.1 Named arguments
+### 14.5 Named arguments
 
 Current preferred syntax uses `=`:
 
 ```voil
 UserBtn(
 	text="just click",
-	onclick=click_btn
+	disabled=false
 )
 ```
 
@@ -562,7 +681,7 @@ Status: `Draft` semantics.
 
 ```voil
 main:
-	container(...):
+	container:
 		std.h1("Hello")
 		UserBtn(text="Click")
 ```
@@ -678,35 +797,51 @@ Required principles:
 
 ---
 
-## 20. Current canonical example
+## 20. Current canonical examples
+
+Component:
 
 ```voil
-# Native HTML and user component imports are visually distinct.
+# UserBtn.voil
+import std from "@voiles/html-base"
+
+component UserBtn(
+	text: String,
+	disabled: Bool = false
+):
+	state count = 0
+
+	fn click():
+		count += 1
+
+	container:
+		std.button(
+			disabled=disabled,
+			onclick=click
+		)
+		std.p(text)
+		std.p(count)
+```
+
+Page:
+
+```voil
 import std from "@voiles/html-base"
 import UserBtn from "../ui/components/UserBtn.voil"
 
-state count = 0
+state page_count = 0
 shared session = none
 
-fn click_btn():
-	count += 1
-
 header:
-	...
+	std.h1("Voiles")
 
 main:
-	container():
-		std.h1("Hello world")
-
-		UserBtn(
-			text="just click",
-			onclick=click_btn
-		)
-
-	std.p(count)
+	UserBtn(text="First")
+	UserBtn(text="Second")
+	std.p(page_count)
 ```
 
-`UserBtn()` creates its own component instance scope each time it is invoked. `state` remains scoped to its owner; `shared` is the explicit application-global form.
+Each `UserBtn()` invocation creates its own component instance scope. `state` remains scoped to its owner; `shared` is the explicit application-global form.
 
 ---
 
@@ -721,6 +856,7 @@ moduleItem          := importDecl
                      | typeDecl
                      | bindingDecl
                      | functionDecl
+                     | componentDecl
                      | paramDecl
                      | structuralBlock
                      | expressionStatement
@@ -730,6 +866,7 @@ comment             := "#" commentText NEWLINE
 
 importDecl          := "import" identifier "from" stringLiteral
 functionDecl        := "fn" identifier parameters returnType? block
+componentDecl       := "component" PascalIdentifier parameters block
 
 bindingDecl         := constDecl | stateDecl | sharedDecl
 constDecl           := "const" identifier typeAnnotation? "=" expression
@@ -743,7 +880,12 @@ callArguments       := "(" namedArgumentList? ")"
 namedArgument       := identifier "=" expression
 ```
 
-Semantic validation must reject `sharedDecl` outside module top level.
+Semantic validation must:
+
+- reject `sharedDecl` outside module top level;
+- require component declaration names to be unique within a module;
+- create an independent scope for each component invocation;
+- expose top-level component declarations automatically to component import resolution.
 
 The grammar must still resolve:
 
@@ -751,11 +893,12 @@ The grammar must still resolve:
 - structural block name table;
 - component child blocks;
 - expression precedence;
-- CSS/style contexts.
+- CSS/style contexts;
+- final multi-component import/alias syntax.
 
 ---
 
-## 22. Parser/CST requirements
+## 22. Compiler/CST requirements
 
 The accepted syntax requires:
 
@@ -766,8 +909,11 @@ The accepted syntax requires:
 - source spans suitable for diagnostics;
 - multiline parenthesized expression continuation;
 - recovery after malformed indentation;
-- distinction between structural block, standard HTML call, ordinary call and user component call;
-- formatter stability.
+- distinction between structural block, component declaration, standard HTML call, ordinary call and user component call;
+- formatter stability;
+- component symbol indexing per module;
+- component dependency graph construction;
+- dead-code elimination eligibility for unreachable component declarations.
 
 ---
 
@@ -779,8 +925,9 @@ Parser-blocking or near-blocking priorities:
 2. finalize the remaining `const/state/shared` lowering details and whether a local `mut` form is needed;
 3. finalize named argument separator `=`;
 4. define top-level structural block grammar and valid structural names;
-5. define how a `.voil` module exposes its renderable component surface without explicit file-role declarations;
+5. finalize multi-component import and alias syntax;
 6. define component child block grammar;
 7. define expression precedence;
 8. define `@voiles/html-base` minimum API surface;
-9. separately design CSS/layout integration before locking `container(...)` parameters.
+9. separately design CSS/layout integration before locking `container(...)` parameters;
+10. define module top-level side-effect policy so tree-shaking guarantees are precise.
