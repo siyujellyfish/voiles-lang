@@ -19,7 +19,7 @@ Voiles 不採 JSX/TSX template language 路線，也不把 TypeScript parser/typ
 
 ### A-003：Block 使用 `:` + significant indentation
 
-所有會開啟 block 的語法以 `:` 明確結束 header，child hierarchy 由縮排決定。
+所有 block opener 以 `:` 結束 header，child hierarchy 由縮排決定。不使用 `{}` 作為一般 block delimiter，也不使用 HTML/XML closing tag。
 
 ```voil
 fn click_btn():
@@ -30,15 +30,13 @@ main:
 		std.h1("Hello")
 ```
 
-不使用 `{}` 作為一般 block delimiter，也不使用 HTML/XML closing tag。
-
 ### A-004：`#` 僅作為註解起始符
 
 ```voil
 # comment
 ```
 
-`#` 不再承擔 HTML id shorthand 等其他語意。
+`#` 不承擔 HTML id shorthand 或其他語意。
 
 ### A-005：Import module specifier 必須使用字串
 
@@ -60,7 +58,7 @@ fn click_btn():
 
 ### A-007：Page 可直接使用 semantic HTML structural blocks
 
-頁面不要求額外 `view:` wrapper 或第一行 `page` declaration：
+頁面不要求 `view:` wrapper 或第一行 `page` declaration：
 
 ```voil
 header:
@@ -79,29 +77,26 @@ Native HTML API 經由標準 HTML module namespace 使用：
 
 ```voil
 import std from "@voiles/html-base"
-
 std.h1("Hello")
-std.p(count)
 ```
 
 User component 使用 imported PascalCase symbol：
 
 ```voil
 UserBtn(
-	text="just click",
-	onclick=click_btn
+	text="just click"
 )
 ```
 
-`std` 為官方文件與 formatter 建議的 canonical alias；是否提升為語言級 reserved namespace 仍可後續評估。
+`std` 為官方文件與 formatter 建議的 canonical alias；是否提升為 reserved namespace 仍可後續評估。
 
 ### A-009：Component invocation 採 function-like syntax
 
-User component 不使用 JSX/XML tag。Component children 使用 `:` 開啟 child block，而不是 closing tag。
+User component 不使用 JSX/XML tag。Component children 使用 `:` 開啟 child block。
 
 ### A-010：Reactive mutation 必須明確
 
-會觸發 UI dependency tracking 的資料必須使用明確 mutable binding；普通 immutable binding 不因被 UI 引用就自動變成 reactive state。
+會觸發 UI dependency tracking 的資料必須使用明確 mutable binding；immutable binding 不因被 UI 引用就自動變成 reactive state。
 
 ### A-011：String 不等於可信 HTML
 
@@ -117,8 +112,6 @@ User component 不使用 JSX/XML tag。Component children 使用 `:` 開啟 chil
 
 ### A-014：同 importer scope + 同 resolved path 共用同一 module instance
 
-普通 `.voil` import 採 scoped module instance 模型：
-
 ```text
 same importer scope + same resolved path
 -> same module instance
@@ -131,8 +124,6 @@ different importer scope + same resolved path
 
 ### A-015：共享性宣告在變數，而非 module/import
 
-共享變數直接寫：
-
 ```voil
 shared i = 1
 ```
@@ -143,7 +134,7 @@ shared i = 1
 
 `shared` 視為 application-global storage，因此只能出現在 `.voil` module 最外層。Component、function、`if`、loop 等 nested scope 中的 `shared` 都是 compile error。
 
-### A-017：每次 Component invocation 建立獨立 instance scope
+### A-017：每次 Component invocation identity 建立獨立 instance scope
 
 不同 component invocation identity 各自擁有 component-local `state` 與普通 scoped `.voil` dependencies；只有 `shared` 跨 instance 共用。
 
@@ -174,55 +165,24 @@ import A, B from "./c.voil"
 
 ### A-021：Component children 使用 `slot` 模型
 
-Component invocation child block 的普通內容進入 default slot：
+Ordinary child content 進入 default slot：
 
 ```voil
 Card(title="Profile"):
 	std.p(user.name)
 ```
 
-Component 使用 compiler-level `slot` outlet：
-
-```voil
-component Card(title: String):
-	container:
-		std.h2(title)
-		slot
-```
-
-Named slot：
-
-```voil
-component Modal():
-	slot header
-	slot
-	slot footer
-```
-
-Caller：
-
-```voil
-Modal():
-	slot header:
-		std.h2("Confirm")
-
-	std.p("Content")
-
-	slot footer:
-		Button(text="OK")
-```
+Component 內使用 compiler-level `slot` outlet；named slot 使用 `slot Name` / `slot Name:`。
 
 Slot content 保留 caller lexical scope；component 只控制插入位置。
 
 ### A-022：Slot cardinality 採單一 optional outlet/provision
 
-v0.1 中 default/named slot 都預設 optional。Component declaration 最多一個 default outlet、每個 named outlet 最多一個；caller 每個 named slot 最多提供一次。
+v0.1 中 default/named slot 預設 optional。Component declaration 最多一個 default outlet、每個 named outlet 最多一個；caller 每個 named slot 最多提供一次。
 
 Unknown named slot、duplicate outlet/provision，以及沒有 default outlet 卻傳 ordinary children 都是 compile error。v0.1 不加入 required slot、重複 projection/cloning 或 scoped-slot parameter。
 
 ### A-023：Component parameter 為 immutable named input，prop 更新保留 instance
-
-Component declaration header 定義 immutable input bindings：
 
 ```voil
 component UserCard(
@@ -241,7 +201,7 @@ Accepted 規則：
 - default expression 每次 invocation 各自 evaluate；
 - parameter/default initialization 由左至右，default 只能引用前面的 parameter；
 - mutable input copy 必須明確建立 `state`；
-- reactive prop value 改變時保留既有 component instance/local state，不因 prop 更新而 destroy/recreate。
+- reactive prop 改變時保留既有 component instance/local state，不因 prop 更新而 destroy/recreate。
 
 ```voil
 component Input(value: String):
@@ -252,16 +212,9 @@ component Input(value: String):
 
 ### A-024：Component identity 採 structural position；Repeated UI 必須 explicit `key`
 
-非 repeated UI 中，component invocation identity 由穩定的結構位置決定。該位置的 reactive values/props 改變時，保留同一 component instance。
+非 repeated UI 中，component invocation identity 由穩定結構位置決定。該位置的 reactive values/props 改變時保留同一 component instance。
 
-Conditional branch 是 lifetime boundary：branch 退出時其中 component instance unmount，ordinary local state 與 scoped dependency instance 釋放；之後重新進入 branch 時建立新 instance。
-
-```voil
-if show_profile:
-	UserCard(
-		name=user.name
-	)
-```
+Conditional branch 是 lifetime boundary：branch 退出時其中 component instance unmount，ordinary local state 與 scoped dependency instance 釋放；重新進入 branch 時建立新 instance。
 
 Repeated UI 若建立 component instance，必須宣告 explicit iteration key：
 
@@ -276,9 +229,43 @@ Voiles v0.1 不使用隱式 index identity；component-instantiating UI loop 缺
 
 同 key 在 reorder 後保留 component instance/state；key 消失則 unmount；新 key 建立新 instance；key 改變等同 identity replacement。
 
-v0.1 key type 限定為 `String` 或 `Int`。同一 repeated UI evaluation 中 duplicate key 為 runtime error，不猜測要復用哪個 instance。
+v0.1 key type 限定 `String` / `Int`。同一 repeated UI evaluation 中 duplicate key 為 runtime error。
 
 普通不建立 repeated component UI 的 algorithmic loop 不要求 `key`。
+
+### A-025：Component lifecycle 使用 `mount` + nested `cleanup`
+
+Component-owned resource lifecycle 使用：
+
+```voil
+component Clock():
+	state now = get_time()
+
+	mount:
+		const timer = start_timer():
+			now = get_time()
+
+		cleanup:
+			timer.stop()
+
+	std.p(now)
+```
+
+Accepted 規則：
+
+- `mount:` 在每個新 mounted component instance 執行一次；
+- reactive prop/state update 不重跑 `mount:`；
+- keyed reorder 且 key 不變時不 cleanup/remount；
+- `cleanup:` 只能出現在 `mount:` block 內；
+- `cleanup:` 可 capture enclosing `mount:` lexical bindings；
+- instance unmount 時 `cleanup:` 執行一次；
+- conditional branch removal、key removal/replacement 都會觸發舊 instance cleanup + unmount；
+- conditional re-entry / new key 建立新 instance 後重新執行 mount；
+- v0.1 不提供 reactive `effect`、dependency array 或自動 rerun 語意。
+
+這讓 timer、subscription、listener 等資源的建立與 teardown 保持同一 lexical lifecycle scope，不要求把 resource handle 存入 component `state`。
+
+普通 scoped module instance 的 cleanup/lifetime 仍是獨立 module-system 決策。
 
 ## Draft
 
@@ -382,7 +369,7 @@ Component 單/多 symbol import 已有基本語法；仍需定義 component alia
 
 ### O-009：Scoped module lifecycle / cycles
 
-Component branch removal/unmount 與 repeated-key identity 已定案；仍需定義實際 cleanup hook/API、scoped module cleanup、cyclic imports 與 `shared` initialization order。
+Component `mount`/`cleanup` 與 component identity lifetime 已定案；仍需定義 ordinary scoped module instance cleanup、cyclic imports 與 `shared` initialization order。
 
 ### O-010：Module top-level side effects / tree-shaking boundary
 
