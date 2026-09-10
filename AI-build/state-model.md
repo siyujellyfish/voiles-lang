@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing, component instance state and slot lexical scope.
+This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing, component parameters/instance state and slot lexical scope.
 
 ## 1. Lexical scope
 
@@ -213,14 +213,17 @@ The compiler must report these declarations as syntax/semantic errors.
 
 This avoids introducing static-local semantics and avoids ambiguity around recursive calls, closures, async tasks and block lifetime.
 
-## 6. Component declaration and instance scope
+## 6. Component declaration, parameters and instance scope
 
 Status: `Accepted`.
 
 A user component is explicitly declared with `component`:
 
 ```voil
-component UserBtn(text: String):
+component UserBtn(
+	text: String,
+	disabled: Bool = false
+):
 	state count = 0
 
 	fn click():
@@ -234,7 +237,11 @@ component UserBtn(text: String):
 		std.p(count)
 ```
 
-Every component invocation creates an independent component instance scope.
+Component parameters are immutable input bindings. A required parameter has no default; an optional parameter has a default. Component invocations are named-argument-only.
+
+Defaults are evaluated independently for each component invocation and initialized left-to-right. A default may reference only parameters already initialized earlier in the declaration.
+
+Every component invocation creates an independent component instance scope when that invocation identity first becomes active.
 
 Usage:
 
@@ -296,6 +303,41 @@ Counter B
 Within one component instance, importing the same resolved module path more than once still resolves to the same dependency module instance.
 
 `shared` remains the explicit exception: a `shared` declaration points to the same application-global storage regardless of which component instance reaches it.
+
+### 6.1 Parameter updates preserve instance state
+
+Status: `Accepted`.
+
+A reactive change in a caller expression supplying a parameter updates that immutable parameter binding on the existing component instance. It does not recreate the component solely because the value changed.
+
+```voil
+state name = "Alice"
+
+UserCard(
+	name=name
+)
+```
+
+After:
+
+```voil
+name = "Bob"
+```
+
+the same `UserCard` instance observes the new input value and preserves its component-local `state` and ordinary imported module instances.
+
+Component-local `state` initializers run when a new component instance is created, not every time a parameter changes.
+
+Therefore:
+
+```voil
+component Input(value: String):
+	state current = value
+```
+
+uses the initial `value` to initialize `current`; a later update to the `value` parameter does not implicitly overwrite `current`.
+
+The remaining runtime identity problem is how the compiler/runtime distinguishes an existing invocation from a new invocation when UI structure changes through conditionals or repeated/list rendering.
 
 ## 7. Component export identity
 
@@ -363,6 +405,12 @@ const
 	immutable
 	lexical scope
 
+component parameter
+	immutable input binding
+	named-only at invocation
+	default evaluated per component invocation
+	parameter updates preserve component instance/local state
+
 state
 	mutable
 	lexical scope
@@ -397,10 +445,14 @@ component declaration
 	-> explicit UI component identity
 	-> automatically exportable
 
-component invocation
+new component invocation identity
 	-> new component instance scope
-	-> independent component-local state
+	-> component-local state initialized
 	-> independent ordinary imported module state
+
+parameter update on existing invocation identity
+	-> same component instance
+	-> local state and dependency instances retained
 
 slot content
 	-> caller lexical environment is retained across projection
@@ -412,9 +464,10 @@ shared in that module
 ## 11. Remaining decisions
 
 - Whether `shared` is always reactive or whether reactivity is generated only when an observer exists. Current preference: mutable declaration with compiler-generated reactivity only when observed.
+- Component identity in conditional/repeated UI and any explicit key mechanism.
 - Component import alias syntax.
 - Exact export/access syntax for non-component module bindings.
-- Required/optional and repeated slot semantics; slot parameters if needed.
+- Slot parameters/content typing if a concrete use case requires them.
 - Cyclic import initialization rules for scoped module instances.
 - Cleanup/lifetime rules when a component/importer/module instance becomes unreachable.
 - Top-level side-effect policy and how it constrains whole-module tree-shaking.
