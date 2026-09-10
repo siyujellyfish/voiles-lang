@@ -75,6 +75,7 @@ Core properties:
 14. unused component declarations are eligible for compiler dead-code elimination.
 15. multiple components from one module use a comma-separated import list.
 16. component children use default/named `slot` projection while retaining caller lexical scope.
+17. v0.1 slots are optional and single-outlet/single-provision by name.
 
 ---
 
@@ -741,13 +742,31 @@ Card():
 
 Caller-authored slot content cannot implicitly access component-local `const`, `state` or helper functions. If values need to cross from a component instance into slot content, that requires a later explicit slot-parameter/scoped-slot design.
 
-Still open:
+#### 14.4.1 Slot cardinality
 
-- required vs optional slot declaration semantics;
-- whether a named slot may be supplied more than once;
-- repeated slot outlet semantics;
-- slot parameters/scoped slots;
-- slot content type model.
+Status: `Accepted` for v0.1.
+
+All slot outlets are optional by default. If no matching content is provided, the outlet renders nothing.
+
+```voil
+component Card():
+	container:
+		slot
+
+Card() # valid
+```
+
+A component declaration may contain at most one default slot outlet and at most one outlet for each named slot. Duplicate outlets are compile errors.
+
+A component invocation may provide each named slot at most once. Duplicate named-slot provisions are compile errors.
+
+Caller-provided named slots must match declared named outlets. Unknown named slots are compile errors.
+
+Ordinary child content requires a default `slot` outlet on the callee. Passing default children to a component without one is a compile error.
+
+A single slot provision may contain any number of child UI nodes. The one-per-name rule applies to the slot outlet/provision, not to the contents of that slot.
+
+Required slots, repeated projection/cloning and slot parameters/scoped slots are not part of the v0.1 baseline.
 
 ### 14.5 Named arguments
 
@@ -1005,7 +1024,11 @@ Semantic validation must:
 - create an independent scope for each component invocation;
 - expose top-level component declarations automatically to component import resolution;
 - resolve each component import item by component declaration name before applying any accepted alias;
-- lower default and named slot content without rebinding its lexical environment from caller to callee.
+- lower default and named slot content without rebinding its lexical environment from caller to callee;
+- reject more than one default slot outlet or duplicate named slot outlets in one component;
+- reject duplicate named-slot provisions in one invocation;
+- reject named-slot provisions that have no corresponding declared outlet;
+- reject ordinary/default child content when the callee has no default slot outlet.
 
 The grammar must still resolve:
 
@@ -1014,7 +1037,7 @@ The grammar must still resolve:
 - expression precedence;
 - CSS/style contexts;
 - component alias finalization;
-- slot cardinality/typing details;
+- slot parameter/type details;
 - non-component import/export semantics.
 
 ---
@@ -1034,6 +1057,7 @@ The accepted syntax requires:
 - distinction between structural block, component declaration, standard HTML call, ordinary call and user component call;
 - parsing of component child blocks, named `slot Name:` blocks and component `slot` outlets;
 - preservation of caller lexical scope through slot lowering;
+- slot cardinality and unknown-slot validation;
 - formatter stability;
 - component symbol indexing per module;
 - component dependency graph construction;
@@ -1050,9 +1074,9 @@ Parser-blocking or near-blocking priorities:
 3. finalize named argument separator `=`;
 4. define top-level structural block grammar and valid structural names;
 5. finalize component import alias syntax (`as` currently recommended);
-6. define slot cardinality/required/optional and repeated-slot rules;
-7. define expression precedence;
-8. define `@voiles/html-base` minimum API surface;
-9. separately design CSS/layout integration before locking `container(...)` parameters;
-10. define module top-level side-effect policy so tree-shaking guarantees are precise;
-11. define non-component default/named/namespace import semantics.
+6. define expression precedence;
+7. define `@voiles/html-base` minimum API surface;
+8. separately design CSS/layout integration before locking `container(...)` parameters;
+9. define module top-level side-effect policy so tree-shaking guarantees are precise;
+10. define non-component default/named/namespace import semantics;
+11. define slot parameter/type semantics only if a concrete use case requires them.
