@@ -12,6 +12,11 @@
 - [x] Allow semantic page structure directly at module level without a `view:` wrapper.
 - [x] Use `std.*`-style standard HTML namespace to visually distinguish native HTML APIs from user components.
 - [x] Use function-like PascalCase syntax for user component invocation.
+- [x] Use lexical scope with nearest-binding resolution and shadowing.
+- [x] Same importer + same resolved `.voil` path resolves to the same module instance.
+- [x] Different import aliases in the same importer do not clone module state.
+- [x] Declare cross-module-instance sharing on the variable with `shared`, not on the module/import.
+- [x] `shared` is mutable by definition and does not require an additional `state` keyword.
 
 ### P0 — parser-blocking decisions
 
@@ -23,14 +28,18 @@
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
-### P0 — binding model
+### P0 — binding / state model
 
 - [ ] Finalize `const` semantics as immutable runtime binding.
-- [ ] Finalize `state` semantics as mutable reactive binding.
+- [ ] Finalize `state` semantics as mutable scoped binding with compiler-generated reactivity when observed.
+- [ ] Finalize `shared` semantics as mutable storage shared across declaring module instances.
+- [ ] Decide whether v0.1 restricts `shared` to module top-level.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
-- [ ] Evaluate whether function-local non-reactive mutation requires `mut` or another restricted construct.
-- [ ] Define where `state` declarations are legal: page/component/module/function scope.
-- [ ] Define state initialization and lifecycle semantics.
+- [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
+- [ ] Define closure capture rules for `const` / `state`.
+- [ ] Define module-instance creation and cleanup lifecycle.
+- [ ] Define cyclic import initialization for scoped modules and `shared` bindings.
+- [ ] Define component invocation state identity relative to imported module instance identity.
 
 ### P1 — standard HTML surface
 
