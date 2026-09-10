@@ -48,6 +48,12 @@
 - [x] Treat removed/changed keys as identity removal/replacement.
 - [x] Restrict v0.1 component keys to `String` / `Int`.
 - [x] Treat duplicate runtime keys as deterministic runtime errors.
+- [x] Use `mount:` once per mounted component instance.
+- [x] Use nested `cleanup:` for component-owned resource teardown.
+- [x] Permit cleanup to capture enclosing mount lexical bindings.
+- [x] Do not rerun mount/cleanup for reactive prop/state updates or unchanged-key reorder.
+- [x] Run cleanup on conditional removal and keyed identity removal/replacement.
+- [x] Defer reactive effect/dependency-array semantics beyond the v0.1 lifecycle baseline.
 
 ### P0 — parser-blocking decisions
 
@@ -63,6 +69,7 @@
 - [x] Define slot cardinality validation baseline.
 - [x] Define component call arguments as named-only.
 - [x] Define keyed repeated-component UI grammar baseline: `for item in items key expression:`.
+- [x] Define component lifecycle block baseline: `mount:` with nested `cleanup:`.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
@@ -79,10 +86,10 @@
 - [x] Define structural component identity for non-repeated UI.
 - [x] Define conditional branch removal/re-entry component lifetime.
 - [x] Define keyed repeated-component identity and duplicate-key behavior.
+- [x] Define component `mount` / nested `cleanup` lifecycle semantics.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
-- [ ] Define explicit mount/unmount cleanup hooks/API.
 - [ ] Define scoped module cleanup when importer/component instances become unreachable.
 - [ ] Define cyclic import initialization for scoped modules and `shared` bindings.
 
@@ -112,11 +119,11 @@
 - [x] Define conditional unmount/re-entry instance behavior.
 - [x] Require explicit keys for repeated component UI and preserve instances by key.
 - [x] Define v0.1 key type and duplicate-key runtime validation.
+- [x] Define component mount/cleanup API semantics.
 - [ ] Finalize component import alias syntax (`as` currently recommended).
 - [ ] Define slot parameter / scoped-slot model if needed.
 - [ ] Define slot content type model.
 - [ ] Define component event/callback prop typing.
-- [ ] Define component mount/unmount cleanup API semantics.
 - [ ] Define module top-level side-effect rules so whole-module tree-shaking behavior is deterministic.
 
 ### P1 — container and CSS integration
