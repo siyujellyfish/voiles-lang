@@ -4,24 +4,51 @@ Status: `Draft`
 
 Target: initial syntax planning before parser/compiler implementation.
 
-Voiles source files use the `.voil` extension. The language targets front-end applications that compile to native HTML, CSS and JavaScript modules while keeping routing, reactivity, style validation and safety semantics available to the compiler.
+Voiles source files use the `.voil` extension. The language targets front-end applications that compile to native HTML, CSS and JavaScript modules while keeping routing, reactivity and safety semantics available to the compiler.
 
-This document intentionally separates accepted language principles from syntax that still requires prototype validation.
+This document separates accepted syntax from areas that still require prototype validation.
 
 ---
 
-## 1. Language goals
+## 1. Core syntax direction
 
-The syntax must optimize for the following properties:
+Accepted baseline:
 
-1. Minimal markup noise: no closing tags and no JSX/XML boilerplate.
-2. Flat source structure: layout should not require artificial wrapper nodes.
-3. Compiler-readable UI: View and Style must be semantic structures, not opaque strings.
-4. Strict safety by default: no implicit `any`, `null` or `undefined` semantics.
-5. Explicit reactivity: reactive mutation is visible in source.
-6. Native Web output: ordinary HTML/CSS/ESM remain the primary browser target.
-7. File-based routing: route path is derived from the project filesystem.
-8. Low configuration burden: ordinary syntax must not depend on project configuration files.
+```voil
+# comment
+import std from "@voiles/html-base"
+import UserBtn from "../ui/components/UserBtn.voil"
+
+state count = 0
+
+fn click_btn():
+	count += 1
+
+header:
+	...
+
+main:
+	container():
+		std.h1("Hello world")
+		UserBtn(
+			text="just click",
+			onclick=click_btn
+		)
+
+	std.p(count)
+```
+
+Core properties:
+
+1. `:` opens a block.
+2. indentation defines hierarchy.
+3. `#` is comment syntax only.
+4. import module paths are always quoted strings.
+5. function declarations use `fn`.
+6. semantic page structure may appear directly at module level.
+7. native HTML leaf APIs are accessed through the standard HTML namespace.
+8. user components use function-like PascalCase invocation.
+9. no HTML/XML closing tags are used.
 
 ---
 
@@ -29,20 +56,21 @@ The syntax must optimize for the following properties:
 
 A `.voil` file is a module.
 
-A file may contain:
+A module may contain:
 
 - imports;
 - type declarations;
-- constants and functions;
-- component properties;
-- reactive state;
+- immutable or reactive bindings;
+- functions;
 - route parameter declarations;
-- one primary `view` block;
-- zero or more `style` blocks.
+- semantic HTML structural blocks;
+- container blocks;
+- native HTML API calls;
+- user component invocations.
 
-The source filename and filesystem location may add semantic meaning. In particular, a file under `app/` may become a route automatically.
+Files under `app/` may become routes automatically.
 
-### 2.1 Initial project convention
+Example:
 
 ```text
 app/
@@ -50,8 +78,9 @@ app/
 	about.voil
 	users/
 		[id].voil
-components/
-	UserCard.voil
+ui/
+	components/
+		UserBtn.voil
 ```
 
 Expected routes:
@@ -62,60 +91,92 @@ app/about.voil       -> /about
 app/users/[id].voil  -> /users/:id
 ```
 
-The route path is not repeated inside each page source file.
+Route paths are not repeated inside source files.
 
 ---
 
-## 3. Block structure
+## 3. Blocks
 
-Status: `Draft`
+Status: `Accepted`
 
-The preferred syntax uses significant indentation instead of `{}` for ordinary blocks.
+Voiles uses significant indentation. Every block opener ends with `:`.
 
 ```voil
-fn greet(name: String) -> String
+fn greet(name: String) -> String:
 	return "Hello {name}"
 
-view
-	main.page
-		h1 "Hello"
-		p "Welcome to Voiles"
+main:
+	container():
+		std.h1("Hello")
 ```
 
-The formatter will eventually define one canonical indentation style. The parser prototype must verify that multiline expressions, comments and nested View nodes remain unambiguous.
+Ordinary blocks do not use `{}`.
 
-Whether a block opener requires `:` remains open.
+The lexer/parser must eventually emit or model indentation transitions in a deterministic way and support multiline expression continuation without confusing expression indentation with block indentation.
 
 ---
 
 ## 4. Comments
 
-Proposed initial syntax:
+Status: `Accepted`
+
+Line comments begin with `#`:
 
 ```voil
-// line comment
+# comment
 ```
 
-Multiline comments are not required for the first parser prototype. If added later, they must preserve lossless CST behavior.
+`#` has no HTML id shorthand or other surface-language meaning.
+
+Multiline comment syntax is not required for the first parser milestone.
 
 ---
 
-## 5. Identifiers and naming
+## 5. Imports
 
-Proposed conventions:
+Status: `Accepted` for module path quoting; import forms remain partially open.
 
-- values/functions: `camelCase`
-- types/components: `PascalCase`
-- constants may remain `camelCase`; uppercase constants are not required by grammar
-- CSS class names retain normal CSS-compatible spelling in View/Style contexts
+Module specifiers are always strings:
 
-Naming convention should primarily be formatter/linter guidance rather than parser restrictions.
+```voil
+import std from "@voiles/html-base"
+import UserBtn from "../ui/components/UserBtn.voil"
+```
+
+The same string grammar is intended to cover:
+
+```text
+@voiles package
+npm package
+relative .voil module
+project module path
+```
+
+The complete default/named/namespace import grammar remains open.
+
+`std` is the current canonical alias used by Voiles examples for `@voiles/html-base` so native HTML APIs remain visually distinct from user components.
 
 ---
 
-## 6. Primitive values and types
+## 6. Identifiers and naming
 
-Initial core types:
+Naming style is not currently enforced by the parser.
+
+Examples may use either:
+
+```voil
+click_btn
+```
+
+or another formatter-defined convention later.
+
+PascalCase remains useful for user component symbols because it visually distinguishes them from native HTML APIs and ordinary functions.
+
+---
+
+## 7. Primitive types
+
+Initial type candidates:
 
 ```text
 Bool
@@ -128,545 +189,361 @@ Option<T>
 Result<T, E>
 ```
 
-Potential optional shorthand:
+Optional shorthand remains Draft:
 
 ```voil
 String?
 ```
 
-is equivalent to:
+would mean:
 
 ```voil
 Option<String>
 ```
 
-`T?` does not mean a nullable reference. Voiles does not expose JavaScript-style `undefined` as a normal language value.
-
-### 6.1 Literals
-
-```voil
-true
-false
-42
-3.14
-"hello"
-```
-
-String interpolation:
-
-```voil
-"Hello {user.name}"
-```
-
-Interpolation converts supported values through explicit language-defined formatting rules. Arbitrary object-to-string coercion is not allowed implicitly.
+Voiles does not expose JavaScript-style `undefined` as a normal language value.
 
 ---
 
-## 7. Variable declarations
+## 8. Bindings
 
-The initial model separates immutable local values, mutable local values and reactive state.
+Status: `Draft`
 
-### 7.1 Immutable value
-
-```voil
-let title: String = "Voiles"
-```
-
-Type inference should be permitted when unambiguous:
+The preferred reduced binding model is:
 
 ```voil
-let title = "Voiles"
+const title = "Voiles"
+state count = 0
 ```
 
-### 7.2 Mutable local value
+### 8.1 `const`
 
-Candidate syntax:
+Proposed semantics:
+
+- immutable binding;
+- may be initialized at runtime;
+- does not imply compile-time evaluation;
+- does not trigger reactive dependency updates.
+
+Example:
 
 ```voil
-var index: Int = 0
+const title: String = "Voiles"
 ```
 
-`var` is non-reactive and should not by itself cause View updates.
+### 8.2 `state`
 
-### 7.3 Reactive state
+Proposed semantics:
+
+- mutable binding;
+- reactive;
+- mutation notifies compiler-generated dependency updates;
+- intended primarily for page/component UI state.
+
+Example:
 
 ```voil
 state count: Int = 0
+
+fn click_btn():
+	count += 1
 ```
 
-Mutation:
+### 8.3 Non-reactive mutation
+
+Still open.
+
+Removing `let`/`var` makes the language smaller, but general algorithms can require mutable locals that should not be reactive.
+
+A possible future solution is function-local `mut`:
 
 ```voil
-count += 1
+fn sum(values: List<Int>) -> Int:
+	mut total = 0
+	for value in values:
+		total += value
+	return total
 ```
 
-The compiler tracks View dependencies on `state` values and lowers them into direct reactive updates.
-
-A normal `let`/`var` does not silently become reactive because it is referenced by View code.
-
-### 7.4 Compile-time constant
-
-Candidate syntax:
-
-```voil
-const maxItems: Int = 20
-```
-
-Exact compile-time evaluability rules remain deferred until semantic analysis design.
+This syntax is not accepted yet.
 
 ---
 
-## 8. Functions
+## 9. Functions
 
-Initial syntax:
+Status: `Accepted` for declaration marker and block form.
 
 ```voil
-fn add(a: Int, b: Int) -> Int
+fn add(a: Int, b: Int) -> Int:
 	return a + b
 ```
 
-Functions must have known parameter types. Return type inference may be allowed for local/private functions, but exported API rules should prefer explicit types.
+`fn` is required so declaration grammar does not collide with invocation grammar.
 
-Potential expression-body sugar is deferred:
+Example without explicit return value:
 
 ```voil
-fn add(a: Int, b: Int) -> Int = a + b
+fn click_btn():
+	count += 1
 ```
 
-### 8.1 Async
-
-Candidate:
+Async/error handling remains open:
 
 ```voil
-async fn loadUser(id: Int) -> Result<User, LoadError>
+async fn load_user(id: Int) -> Result<User, LoadError>:
 	...
 ```
 
-Async/error propagation syntax is still `Open` and must be designed together with JavaScript exception interop.
-
 ---
 
-## 9. Structs and enums
+## 10. Structs and enums
 
-### 9.1 Struct
-
-Proposed syntax:
+Status: `Draft`
 
 ```voil
-struct User
+struct User:
 	id: Int
 	name: String
 	email: String?
 ```
 
-Construction syntax is still open. Candidate:
+Candidate construction syntax:
 
 ```voil
-let user = User(
-	id: 1,
-	name: "Ada",
-	email: none
+const user = User(
+	id=1,
+	name="Ada",
+	email=none
 )
 ```
 
-### 9.2 Enum
-
-Proposed syntax:
+Enum candidate:
 
 ```voil
-enum LoadState<T>
+enum LoadState<T>:
 	idle
 	loading
 	ready(T)
 	failed(Error)
 ```
 
-Pattern matching must be exhaustiveness-checked where the enum value is closed and known.
+Pattern matching should be exhaustiveness-checked where possible.
 
 ---
 
-## 10. Control flow
+## 11. Control flow
 
-The same language control flow is used in ordinary logic and in View blocks.
-
-### 10.1 if
+Status: `Draft`, using the accepted block syntax.
 
 ```voil
-if user.isAdmin
-	showAdminPanel()
-else
-	showUserPanel()
+if user.isAdmin:
+	show_admin()
+else:
+	show_user()
 ```
 
-Inside View:
-
 ```voil
-view
-	main
-		if user.isAdmin
-			AdminPanel
-		else
-			UserPanel
-```
-
-### 10.2 for
-
-```voil
-for item in items
+for item in items:
 	process(item)
 ```
 
-Inside View:
-
 ```voil
-view
-	ul
-		for item in items
-			li item.name
+match state:
+	idle:
+		std.p("Idle")
+	loading:
+		Spinner()
+	ready(data):
+		Results(data=data)
 ```
 
-Keyed iteration is required for stable reactive DOM lists. Candidate syntax:
-
-```voil
-for item in items key item.id
-	UserRow(item: item)
-```
-
-The exact key grammar remains `Draft`.
-
-### 10.3 match
-
-```voil
-match state
-	idle
-		text "Idle"
-	loading
-		Spinner
-	ready(data)
-		Results(data: data)
-	failed(error)
-		ErrorView(error: error)
-```
-
-The compiler should report non-exhaustive matches when it can prove the input enum is closed.
+Control flow should be usable directly inside page/component UI hierarchy rather than introducing template-only directives.
 
 ---
 
-## 11. View
+## 12. Page structure
 
-A file may define one primary View block:
+Status: `Accepted` baseline.
+
+A page does not require a `view:` wrapper.
 
 ```voil
-view
-	main.page
-		h1 "Hello"
-		p "Welcome"
+header:
+	std.h1("Account")
+
+main:
+	std.p("Content")
+
+footer:
+	std.p("Footer")
 ```
 
-View syntax is not HTML text. The parser builds a typed View AST/HIR.
+These structural blocks correspond to semantic HTML elements.
 
-### 11.1 Native element node
-
-Preferred node shape:
+Initial candidates include:
 
 ```text
-element[.class...][#id][(attributes)] [value]
+header
+main
+footer
+nav
+section
+article
+aside
 ```
 
-Examples:
+The exact list and whether every semantic HTML container is syntax-level must be defined with `@voiles/html-base` so the language core does not unnecessarily duplicate the entire HTML specification.
 
-```voil
-h1 "Account"
-p.description user.bio
-button.primary(type: "button") "Save"
-img.avatar(src: user.avatar, alt: user.name)
-```
-
-Attribute separator is still open between `:` and `=`.
-
-### 11.2 Text
-
-Literal text:
-
-```voil
-p "Hello"
-```
-
-Expression text:
-
-```voil
-p user.name
-```
-
-Interpolated text:
-
-```voil
-p "Welcome, {user.name}"
-```
-
-All normal text insertion is escaped.
-
-### 11.3 Classes and IDs
-
-Candidate shorthand:
-
-```voil
-main.page
-section.content.wide
-button#submit.primary
-```
-
-Dynamic class syntax remains open and should not become string concatenation by default.
-
-Possible future model:
-
-```voil
-button(class: { primary: true, loading: busy }) "Save"
-```
-
-No final syntax is selected yet.
-
-### 11.4 Attributes
-
-Candidate:
-
-```voil
-a(href: user.profileUrl, target: "_blank") user.name
-```
-
-Attribute values are typed expressions. The compiler should understand special Web types such as URL-like or boolean attributes where practical.
-
-### 11.5 Boolean attributes
-
-Candidate:
-
-```voil
-button(disabled: busy) "Save"
-```
-
-The compiler emits or removes the native boolean attribute according to the expression value rather than serializing `"false"`.
+A page may plausibly contain sibling structural roots such as `header:` + `main:` + `footer:`; exact root validation remains open.
 
 ---
 
-## 12. Layout primitives
+## 13. Standard HTML module
 
-Voiles should provide layout-semantic nodes that do not necessarily create DOM wrappers.
+Status: `Accepted` concept, surface API Open.
 
-Initial candidates:
+Native HTML leaf elements are intentionally visually different from user components:
+
+```voil
+import std from "@voiles/html-base"
+
+std.h1("Hello world")
+std.p(count)
+std.img(
+	src=user.avatar,
+	alt=user.name
+)
+```
+
+The namespace approach avoids making every HTML tag a language keyword.
+
+The compiler/standard module can still give these functions privileged HTML semantics for:
+
+- correct element lowering;
+- text escaping;
+- typed attributes;
+- boolean attribute behavior;
+- event types;
+- accessibility diagnostics where appropriate.
+
+The boundary between syntax-level structural HTML (`main:`) and `std.*` HTML APIs must be kept intentionally small.
+
+---
+
+## 14. User components
+
+Status: `Accepted` invocation form.
+
+```voil
+UserBtn(
+	text="just click",
+	onclick=click_btn
+)
+```
+
+User components use function-like invocation rather than JSX/XML.
+
+Component children, when supported, use the same block syntax:
+
+```voil
+Card(title="Profile"):
+	std.p(user.name)
+```
+
+The child/slot type model is still open.
+
+### 14.1 Named arguments
+
+Current preferred syntax uses `=`:
+
+```voil
+UserBtn(
+	text="just click",
+	onclick=click_btn
+)
+```
+
+This remains Draft until assignment, default arguments and struct construction are checked for grammar ambiguity.
+
+---
+
+## 15. Container
+
+Status: `Draft` semantics.
+
+`container` exists to create an explicit block-level layout region.
+
+```voil
+main:
+	container(...):
+		std.h1("Hello")
+		UserBtn(text="Click")
+```
+
+The intended model is closer to an HTML `<div>` than to a purely virtual layout construct.
+
+Baseline expectation:
 
 ```text
-stack
-row
-grid
-layer
+container -> concrete block/layout container
 ```
 
-Example:
+The default lowering may therefore be a `<div>` or equivalent element.
 
-```voil
-view
-	stack.page
-		h1 "Dashboard"
-		row.actions
-			button "Refresh"
-			button "Settings"
-```
+Compiler wrapper elimination should only happen when it can prove removal preserves:
 
-`stack` and `row` describe layout intent. During lowering, the compiler may:
+- layout;
+- style scope;
+- event behavior;
+- DOM semantics;
+- accessibility;
+- component lifecycle behavior.
 
-1. reuse an existing semantic element;
-2. create a container if CSS/layout semantics require one;
-3. eliminate a redundant container where output semantics are unchanged.
-
-The exact wrapper-elision algorithm is compiler work and not part of the surface grammar.
+The parameters accepted by `container(...)` are deliberately unspecified until CSS integration is designed.
 
 ---
 
-## 13. Components
+## 16. CSS and layout integration
 
-Status: `Draft`
+Status: `Open`.
 
-The preferred model treats one `.voil` component file as an implicit default component.
+CSS is too broad to lock into a simplified custom DSL before evaluating compatibility requirements.
 
-Example `components/UserCard.voil`:
+The design must answer at least:
 
-```voil
-prop user: User
-prop compact: Bool = false
+1. Does `container(...)` accept a Voiles-specific typed layout API, CSS-like properties, or both?
+2. Are styles inline with the node, separate in the `.voil` file, or imported from CSS?
+3. How are component-local styles scoped without breaking native cascade?
+4. How are custom properties handled?
+5. How are pseudo classes/elements handled?
+6. How are media queries and container queries handled?
+7. How are animations/keyframes handled?
+8. How quickly can new browser CSS features be used without waiting for a Voiles release?
+9. Which parts can the compiler type-check safely?
+10. What is the raw/native CSS escape hatch?
 
-view
-	article.card
-		h2 user.name
-		if !compact
-			p user.email
-```
-
-A consumer imports the file and invokes it as a component.
-
-Candidate invocation:
-
-```voil
-UserCard(user: currentUser, compact: true)
-```
-
-This intentionally resembles typed function invocation rather than XML tags.
-
-### 13.1 Props
-
-Required prop:
-
-```voil
-prop user: User
-```
-
-Optional/default prop:
-
-```voil
-prop compact: Bool = false
-```
-
-Props are immutable inside the component unless a future explicit mechanism says otherwise.
-
-### 13.2 Children
-
-Typed child content / slots are still open. v0 parser may initially support components without named slots and add children semantics after the basic component HIR stabilizes.
-
----
-
-## 14. Events
-
-Status: `Open`
-
-Current preferred direction:
-
-```voil
-button "Save"
-	on click save
-```
-
-Handler:
-
-```voil
-fn save(event: ClickEvent)
-	...
-```
-
-Potential modifiers:
-
-```voil
-button "Save"
-	on click prevent save
-```
-
-Modifier vocabulary and event type model are not yet defined.
-
-Alternative syntax remains under evaluation because event blocks can add nesting for otherwise leaf nodes.
-
----
-
-## 15. Binding
-
-Status: `Open`
-
-Explicit one-way form is always representable:
-
-```voil
-input(value: name)
-	on input updateName
-```
-
-A dedicated two-way binding feature may be added only if its mutation and type semantics remain obvious.
-
-Candidate:
-
-```voil
-input
-	bind value: name
-```
-
-No two-way binding syntax is accepted yet.
-
----
-
-## 16. Styles
-
-Status: `Draft`
-
-Style declarations are parsed by Voiles and lowered into typed Style IR.
-
-Preferred baseline keeps CSS property names recognizable while removing braces and semicolons:
-
-```voil
-style .card
-	display: grid
-	gap: 1rem
-	padding: 1rem
-	border-radius: 0.75rem
-```
-
-The compiler must validate at least:
-
-- known property names;
-- value grammar where supported;
-- unit compatibility where statically knowable;
-- invalid combinations where the language intentionally adds stronger constraints.
-
-### 16.1 Style scope
-
-Default scoping is still open. The preferred direction is component-local styles with an explicit global escape hatch.
-
-### 16.2 Pseudo selectors
-
-Candidate:
-
-```voil
-style .button:hover
-	transform: translateY(-1px)
-```
-
-### 16.3 Responsive/container conditions
-
-Not yet specified. This must preserve compatibility with modern CSS capabilities rather than replace them with a permanently smaller custom feature set.
-
-### 16.4 Native CSS escape hatch
-
-Required before v1, syntax open. Escape-hatch regions must be clearly marked because the compiler may not be able to provide the same typed guarantees or optimization.
+Until this is resolved, examples should avoid treating names such as `display=horizontal` as final language syntax.
 
 ---
 
 ## 17. Routes
 
-Filesystem routing is part of project semantics rather than explicit route path syntax.
-
-### 17.1 Static route
+Filesystem routing remains part of project semantics.
 
 ```text
 app/about.voil -> /about
-```
-
-No source declaration is necessary.
-
-### 17.2 Dynamic route
-
-```text
 app/users/[id].voil -> /users/:id
 ```
 
-By default, `id` may enter the file as `String`.
-
-A page can request a stronger route type:
+Candidate typed param declaration:
 
 ```voil
 param id: Int
 ```
 
-This produces a typed `id: Int` binding after route parsing.
+A route conversion failure must never inject an unchecked invalid value into the page. Exact failure behavior remains open.
 
-Invalid conversion must not produce an unchecked value. The router/compiler contract will define whether conversion failure means non-match, 404 or an explicit route error.
-
-### 17.3 Route-special files
-
-Planned project-level conventions include:
+Planned special files include:
 
 ```text
 _layout.voil
@@ -674,318 +551,145 @@ _404.voil
 _error.voil
 ```
 
-Their exact exported bindings and lifecycle are not part of the first syntax prototype.
-
 ---
 
-## 18. Page metadata/head
+## 18. HTML safety
 
-Status: `Open`
-
-A future route file may support a compiler-aware head block rather than direct DOM mutation.
-
-Candidate:
+Normal text/data passed to standard HTML APIs is not trusted HTML.
 
 ```voil
-head
-	title "Profile - {user.name}"
-	meta(name: "description", content: user.bio)
-```
-
-This is not required for the first parser milestone.
-
----
-
-## 19. HTML safety
-
-Normal View expressions produce text, not HTML.
-
-```voil
-p userInput
+std.p(user_input)
 ```
 
 must escape HTML-sensitive content.
 
-Raw HTML requires a distinct trusted type or an explicit unsafe boundary.
+Raw HTML requires a separate trusted type or explicit unsafe boundary.
 
-Preferred safe API concept:
-
-```voil
-prop content: TrustedHtml
-
-view
-	html content
-```
-
-An unsafe conversion from arbitrary String must be visibly exceptional and may be unavailable without an explicit unsafe/interop API.
-
-A plain `String` must never implicitly satisfy `TrustedHtml`.
-
----
-
-## 20. URL/style safety types
-
-Long-term safety model should distinguish data domains that JavaScript commonly represents as raw strings.
-
-Candidates include:
+Candidate:
 
 ```text
-Url
 TrustedHtml
-CssValue / typed style values
 ```
 
-These are semantic safety types, not necessarily all primitive syntax-level types.
-
-The first type checker prototype may begin with `String` while reserving the right to introduce stronger standard-library nominal types before stable release.
+A plain `String` must not implicitly satisfy it.
 
 ---
 
-## 21. Modules and imports
+## 19. JavaScript interop
 
-Status: `Open`
+Status: `Open`.
 
-Voiles needs to distinguish or safely unify three sources:
+Interop is required, but JS/npm modules are a type and safety boundary.
 
-1. `.voil` modules;
-2. built-in/platform modules;
-3. JavaScript/npm modules.
+Required principles:
 
-Candidate surface syntax:
+- JS values do not automatically gain trustworthy Voiles types;
+- `undefined` must be normalized;
+- thrown exceptions must be represented explicitly;
+- mutable external objects require known interop semantics;
+- unsafe direct interop, if provided, must be visibly explicit.
+
+---
+
+## 20. Current canonical example
 
 ```voil
-use UserCard from "../components/UserCard.voil"
-```
+# Native HTML and user component imports are visually distinct.
+import std from "@voiles/html-base"
+import UserBtn from "../ui/components/UserBtn.voil"
 
-A more language-native module path syntax may replace this. JS interop cannot simply inherit TypeScript trust; external values should cross an explicit validation/type boundary.
+state count = 0
 
-No import syntax is accepted yet.
+fn click_btn():
+	count += 1
 
----
-
-## 22. JavaScript interop
-
-Status: `Open`
-
-Interop is required for ecosystem compatibility, but JS must be treated as a safety boundary.
-
-Rules to preserve:
-
-- imported JS values do not implicitly gain trustworthy Voiles types;
-- `undefined`, thrown exceptions and mutable object behavior must be normalized explicitly;
-- DOM/Web API wrappers may be provided by the standard library with known types;
-- unsafe direct interop, if supported, must be visually explicit.
-
-Exact syntax is deferred until the type system and module system prototypes exist.
-
----
-
-## 23. Error handling
-
-Status: `Open`
-
-The type system should include `Result<T, E>`.
-
-Candidate pattern:
-
-```voil
-match loadUser(id)
-	ok(user)
-		show(user)
-	err(error)
-		report(error)
-```
-
-Propagation syntax such as postfix `?` is not accepted yet. It must be evaluated together with async functions and JS exception boundaries.
-
----
-
-## 24. Complete component example
-
-This example demonstrates the preferred current direction, not final syntax.
-
-```voil
-struct User
-	id: Int
-	name: String
-	email: String
-
-prop user: User
-prop compact: Bool = false
-state expanded: Bool = false
-
-fn toggle()
-	expanded = !expanded
-
-view
-	article.card
-		row.header
-			h2 user.name
-			button(type: "button") "Details"
-				on click toggle
-
-		if !compact && expanded
-			p user.email
-
-style .card
-	display: grid
-	gap: 1rem
-	padding: 1rem
-	border-radius: 0.75rem
-
-style .header
-	display: flex
-	align-items: center
-	justify-content: space-between
-```
-
----
-
-## 25. Complete route example
-
-Conceptual file: `app/users/[id].voil`
-
-```voil
-param id: Int
-state user: User? = none
-state loading: Bool = true
-
-async fn load()
+header:
 	...
 
-view
-	main.page
-		if loading
-			p "Loading..."
-		else
-			match user
-				none
-					p "User not found"
-				some(value)
-					UserCard(user: value)
+main:
+	container():
+		std.h1("Hello world")
 
-style .page
-	max-width: 72rem
-	margin-inline: auto
-	padding: 1rem
+		UserBtn(
+			text="just click",
+			onclick=click_btn
+		)
+
+	std.p(count)
 ```
 
-The lifecycle that invokes `load()` is intentionally unspecified until component/page lifecycle semantics are designed.
+This is the current syntax reference for parser planning. `container(...)` layout arguments and the exact `const/state` model are intentionally not finalized yet.
 
 ---
 
-## 26. Initial grammar sketch
+## 21. Initial grammar sketch
 
-This grammar is descriptive only and is not ready to become the parser source of truth.
+Descriptive only:
 
 ```text
-module          := declaration* EOF
+module              := moduleItem* EOF
 
-declaration     := importDecl
-                 | structDecl
-                 | enumDecl
-                 | valueDecl
-                 | functionDecl
-                 | propDecl
-                 | paramDecl
-                 | stateDecl
-                 | viewDecl
-                 | styleDecl
+moduleItem          := importDecl
+                     | typeDecl
+                     | bindingDecl
+                     | functionDecl
+                     | paramDecl
+                     | structuralBlock
+                     | expressionStatement
 
-viewDecl         := "view" block<viewStatement>
+block               := ":" NEWLINE INDENT statement* DEDENT
+comment             := "#" commentText NEWLINE
 
-viewStatement    := viewNode
-                 | ifStatement
-                 | forStatement
-                 | matchStatement
+importDecl          := "import" identifier "from" stringLiteral
+functionDecl        := "fn" identifier parameters returnType? block
 
-viewNode         := nodeHead block<viewStatement>?
-nodeHead         := identifier classRef* idRef? attributes? expression?
-classRef         := "." identifier
-idRef            := "#" identifier
-attributes       := "(" namedArgument ("," namedArgument)* ")"
+bindingDecl         := constDecl | stateDecl
+constDecl           := "const" identifier typeAnnotation? "=" expression
+stateDecl           := "state" identifier typeAnnotation? "=" expression
 
-styleDecl        := "style" selector block<styleProperty>
-styleProperty    := propertyName ":" styleValue
-
-stateDecl        := "state" identifier typeAnnotation? "=" expression
-propDecl         := "prop" identifier ":" type ("=" expression)?
-paramDecl        := "param" identifier ":" type
-functionDecl     := asyncModifier? "fn" identifier parameters returnType? block<statement>
+structuralBlock     := structuralName callArguments? block
+componentCall       := PascalIdentifier callArguments childBlock?
+standardHtmlCall    := identifier "." identifier callArguments
+callArguments       := "(" namedArgumentList? ")"
+namedArgument       := identifier "=" expression
 ```
 
-A real grammar must be produced only after indentation/tokenization and expression precedence prototypes are tested.
+The grammar must still resolve:
+
+- multiline call indentation;
+- function-local mutation syntax;
+- structural block name table;
+- component child blocks;
+- expression precedence;
+- CSS/style contexts.
 
 ---
 
-## 27. Parser/CST requirements derived from syntax
+## 22. Parser/CST requirements
 
-The syntax design implies the parser must eventually support:
+The accepted syntax requires:
 
-- significant indentation tokens if D-001 is accepted;
-- lossless comments/trivia preservation;
-- source spans on every syntax node relevant to diagnostics;
-- recovery after malformed View nodes and declarations;
-- context-sensitive distinction between View nodes, component invocation and ordinary expressions;
-- CSS-like selector/property tokenization inside Style without turning Style into a raw string;
-- future formatter stability.
-
-These requirements should influence parser architecture before implementation begins.
-
----
-
-## 28. MVP syntax subset for first parser prototype
-
-The first parser prototype should intentionally support less than this entire document.
-
-Target subset:
-
-```text
-comments
-primitive literals
-identifiers
-let / var / state
-basic expressions
-fn
-if / else
-for
-struct
-enum
-prop
-param
-view
-native View nodes
-component invocation
-style blocks with simple property:value pairs
-```
-
-Explicitly excluded from parser milestone 1:
-
-```text
-async lowering
-JS interop
-raw HTML
-slots
-advanced CSS at-rules
-route lifecycle
-SSR syntax
-macros
-operator overloading
-```
+- explicit `NEWLINE`, `INDENT`, `DEDENT` behavior or an equivalent parser model;
+- `:` block opener recognition;
+- line comments beginning with `#`;
+- lossless comment/trivia preservation;
+- source spans suitable for diagnostics;
+- multiline parenthesized expression continuation;
+- recovery after malformed indentation;
+- distinction between structural block, standard HTML call, ordinary call and user component call;
+- formatter stability.
 
 ---
 
-## 29. Next decisions required
+## 23. Next decisions required
 
-Before implementing the lexer/parser, the following must be decided or prototyped in order:
+Parser-blocking or near-blocking priorities:
 
-1. whether indentation is syntax-significant;
-2. whether block openers require `:`;
-3. attribute/named-argument separator (`:` vs `=`);
-4. View node vs component invocation disambiguation;
-5. event syntax;
-6. optional `T?` syntax;
-7. Style scoping baseline;
-8. import/module syntax.
-
-Items 1-4 are parser-blocking. Items 5-8 can remain draft during the earliest lexer experiments.
+1. finalize multiline indentation/tokenization rules;
+2. finalize `const/state` semantics and whether a local `mut` form is needed;
+3. finalize named argument separator `=`;
+4. define top-level structural block grammar and valid structural names;
+5. define component child block grammar;
+6. define expression precedence;
+7. define `@voiles/html-base` minimum API surface;
+8. separately design CSS/layout integration before locking `container(...)` parameters.
