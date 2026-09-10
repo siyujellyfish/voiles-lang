@@ -127,13 +127,13 @@ shared i = 1
 
 `shared` does not require `state` because mutability is inherent in the declaration.
 
-Proposed semantics:
+Accepted semantics:
 
 - mutable;
 - reactive when observed by UI/runtime dependencies;
 - one shared storage cell per declaration identity across all instances of the declaring `.voil` module within the application runtime;
-- lexical visibility still follows the source declaration scope;
-- ordinary imports do not need a `shared import` form.
+- ordinary imports do not need a `shared import` form;
+- `shared` is only legal at module top level.
 
 Example:
 
@@ -173,20 +173,13 @@ store.voil declaration: shared count
 
 This keeps sharing explicit at the exact declaration that can create cross-scope mutation.
 
-## 5. Recommended v0.1 restriction for `shared`
+## 5. `shared` is top-level only
 
-For v0.1, `shared` should be legal only at module top level.
+Status: `Accepted`.
 
-Reason:
+`shared` represents application-global storage, so it is valid only at module top level.
 
-```voil
-fn test():
-	shared i = 0
-```
-
-would otherwise require defining whether the storage is shared across function invocations, closure instances, module instances, async tasks and recursive calls. That creates a static-local/global-storage feature unrelated to the primary shared application-state use case.
-
-Therefore the initial grammar should prefer:
+Valid:
 
 ```voil
 shared session = none
@@ -195,9 +188,23 @@ fn update_session(...):
 	...
 ```
 
-and reject block-local/function-local `shared` until a concrete requirement exists.
+Invalid:
 
-This restriction is currently `Draft`; the variable-level sharing model itself is accepted.
+```voil
+fn test():
+	shared i = 0
+```
+
+Also invalid inside other nested blocks:
+
+```voil
+if ready:
+	shared cache = none
+```
+
+The compiler must report these declarations as syntax/semantic errors.
+
+This avoids introducing static-local semantics and avoids ambiguity around recursive calls, closures, async tasks and block lifetime.
 
 ## 6. State identity summary
 
@@ -214,9 +221,9 @@ state
 
 shared
 	mutable
-	lexical visibility
+	module top-level only
 	storage is shared across module instances
-	intended for explicit cross-scope/application state
+	intended for explicit application-global state
 ```
 
 ## 7. Module identity summary
@@ -238,7 +245,6 @@ shared in that module
 ## 8. Remaining decisions
 
 - Whether `shared` is always reactive or whether reactivity is generated only when an observer exists. Current preference: mutable declaration with compiler-generated reactivity only when observed.
-- Whether `shared` is restricted to top-level in v0.1. Current preference: yes.
 - Exact export/access syntax for module bindings.
 - Component invocation state identity relative to module instance identity.
 - Cyclic import initialization rules for scoped module instances.
