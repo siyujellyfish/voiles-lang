@@ -21,6 +21,10 @@
 - [x] Every component invocation creates an independent component instance scope.
 - [x] Component-local ordinary `state` is isolated per invocation.
 - [x] Ordinary scoped modules imported by a component are also isolated per component instance; `shared` remains global.
+- [x] Declare components explicitly with `component Name(...):`.
+- [x] Allow multiple component declarations in one `.voil` module.
+- [x] Automatically expose every top-level component declaration without requiring `export` syntax.
+- [x] Treat unreachable component declarations as compiler tree-shaking / dead-code-elimination candidates.
 
 ### P0 — parser-blocking decisions
 
@@ -28,6 +32,7 @@
 - [ ] Define multiline parenthesized expression continuation rules.
 - [ ] Confirm named argument separator `=` across components, struct construction and function defaults.
 - [ ] Define unambiguous grammar for structural HTML block vs ordinary block/call.
+- [x] Define component declaration grammar baseline: `component PascalName(parameters):`.
 - [ ] Define user component child-block grammar.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
@@ -45,7 +50,6 @@
 - [ ] Define closure capture rules for `const` / `state`.
 - [ ] Define module/component-instance creation and cleanup lifecycle.
 - [ ] Define cyclic import initialization for scoped modules and `shared` bindings.
-- [ ] Define how a `.voil` module exposes a renderable component surface without explicit file-role annotations.
 
 ### P1 — standard HTML surface
 
@@ -59,12 +63,16 @@
 
 ### P1 — components
 
-- [ ] Define component file/default export model.
-- [ ] Finalize component prop declaration syntax.
+- [x] Define explicit component declaration model.
+- [x] Define automatic component export model with no `export` keyword.
+- [x] Allow multiple component declarations per `.voil` module.
+- [x] Define unused component declarations as tree-shaking candidates.
+- [ ] Finalize component parameter / prop declaration semantics.
+- [ ] Define exact multi-component import and alias syntax.
 - [ ] Define component children / slot model.
 - [ ] Define component event/callback prop typing.
-- [ ] Define whether multiple components may be declared in one `.voil` file.
 - [ ] Define component mount/unmount lifetime and cleanup semantics.
+- [ ] Define module top-level side-effect rules so whole-module tree-shaking behavior is deterministic.
 
 ### P1 — container and CSS integration
 
@@ -106,7 +114,8 @@
 
 ### P2 — module and ecosystem surface
 
-- [ ] Finalize default/named/namespace import forms.
+- [ ] Finalize component import / alias forms.
+- [ ] Finalize non-component default/named/namespace import forms.
 - [ ] Define project-root import convention without requiring config.
 - [ ] Define npm package import semantics.
 - [ ] Define native Web API exposure strategy.
