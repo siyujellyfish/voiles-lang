@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing and component instance state.
+This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing, component instance state and slot lexical scope.
 
 ## 1. Lexical scope
 
@@ -319,9 +319,44 @@ This rule is called automatic or implicit component export. It should not be mod
 
 Component definitions that are unreachable from application entry points may be removed by compiler tree-shaking. Their component-local state is never instantiated unless the component itself is invoked.
 
-Exact multi-symbol import/alias syntax remains a module-system decision.
+Component imports may select multiple declarations using a comma-separated list. Alias syntax remains a separate Draft decision.
 
-## 8. State identity summary
+## 8. Slot lexical scope
+
+Status: `Accepted`.
+
+Component child content is lexically owned by the caller, even though the callee decides where that content is rendered through `slot` outlets.
+
+```voil
+const username = "Alice"
+
+Card():
+	std.p(username)
+```
+
+If `Card` renders its default children with:
+
+```voil
+component Card():
+	container:
+		slot
+```
+
+then `username` still resolves in the caller scope where `Card()` appears. The slot body is not rebound into the lexical scope of the `Card` declaration.
+
+The same rule applies to named slot blocks:
+
+```voil
+Modal():
+	slot header:
+		std.h2(username)
+```
+
+The component controls the insertion point but cannot implicitly access caller-local bindings through slot projection. Likewise slot content cannot implicitly access component-local `const`, `state` or helper bindings.
+
+A future slot-parameter/scoped-slot feature, if added, must explicitly declare any values crossing from the component instance into caller-authored slot content.
+
+## 9. State identity summary
 
 ```text
 const
@@ -340,9 +375,13 @@ shared
 	module top-level only
 	storage is shared across module and component instances
 	intended for explicit application-global state
+
+slot content
+	caller lexical scope
+	callee controls placement only
 ```
 
-## 9. Module / component identity summary
+## 10. Module / component identity summary
 
 ```text
 same importer scope + same resolved path
@@ -363,15 +402,19 @@ component invocation
 	-> independent component-local state
 	-> independent ordinary imported module state
 
+slot content
+	-> caller lexical environment is retained across projection
+
 shared in that module
 	-> same shared storage across all instances
 ```
 
-## 10. Remaining decisions
+## 11. Remaining decisions
 
 - Whether `shared` is always reactive or whether reactivity is generated only when an observer exists. Current preference: mutable declaration with compiler-generated reactivity only when observed.
-- Exact multi-component import and alias syntax.
+- Component import alias syntax.
 - Exact export/access syntax for non-component module bindings.
+- Required/optional and repeated slot semantics; slot parameters if needed.
 - Cyclic import initialization rules for scoped module instances.
 - Cleanup/lifetime rules when a component/importer/module instance becomes unreachable.
 - Top-level side-effect policy and how it constrains whole-module tree-shaking.
