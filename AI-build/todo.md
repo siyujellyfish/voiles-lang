@@ -25,6 +25,7 @@
 - [x] Allow multiple component declarations in one `.voil` module.
 - [x] Automatically expose every top-level component declaration without requiring `export` syntax.
 - [x] Treat unreachable component declarations as compiler tree-shaking / dead-code-elimination candidates.
+- [x] Import multiple component symbols with a comma-separated list: `import A, B from "./c.voil"`.
 
 ### P0 — parser-blocking decisions
 
@@ -33,6 +34,8 @@
 - [ ] Confirm named argument separator `=` across components, struct construction and function defaults.
 - [ ] Define unambiguous grammar for structural HTML block vs ordinary block/call.
 - [x] Define component declaration grammar baseline: `component PascalName(parameters):`.
+- [x] Define component import-list grammar baseline: `import A, B from "..."`.
+- [ ] Finalize component import alias grammar; current recommendation: item-local `as`.
 - [ ] Define user component child-block grammar.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
@@ -67,8 +70,9 @@
 - [x] Define automatic component export model with no `export` keyword.
 - [x] Allow multiple component declarations per `.voil` module.
 - [x] Define unused component declarations as tree-shaking candidates.
+- [x] Define multi-component import list syntax.
 - [ ] Finalize component parameter / prop declaration semantics.
-- [ ] Define exact multi-component import and alias syntax.
+- [ ] Finalize component import alias syntax (`as` currently recommended).
 - [ ] Define component children / slot model.
 - [ ] Define component event/callback prop typing.
 - [ ] Define component mount/unmount lifetime and cleanup semantics.
@@ -114,7 +118,7 @@
 
 ### P2 — module and ecosystem surface
 
-- [ ] Finalize component import / alias forms.
+- [ ] Finalize component alias form.
 - [ ] Finalize non-component default/named/namespace import forms.
 - [ ] Define project-root import convention without requiring config.
 - [ ] Define npm package import semantics.
