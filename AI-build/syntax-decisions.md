@@ -108,7 +108,7 @@ UserBtn(
 )
 ```
 
-Component children 若存在，使用 `:` 開啟 child block，而不是 closing tag。
+Component children 使用 `:` 開啟 child block，而不是 closing tag。
 
 ### A-010：Reactive mutation 必須明確
 
@@ -288,6 +288,52 @@ import UserBtn, IconBtn from "./buttons.voil"
 
 此規則只定案 component symbol list 的表面語法；non-component module/default/named/namespace import semantics 仍分開討論。
 
+### A-021：Component children 使用 `slot` 模型
+
+Component invocation 使用既有 `:` + indentation 傳遞 children：
+
+```voil
+Card(title="Profile"):
+	std.p(user.name)
+```
+
+未包在 named slot block 的 child content 進入 default slot。Component 內使用 compiler-level `slot` outlet 決定插入位置：
+
+```voil
+component Card(title: String):
+	container:
+		std.h2(title)
+		slot
+```
+
+Named slot 使用同一關鍵字：
+
+```voil
+component Modal():
+	container:
+		slot header
+		slot
+		slot footer
+```
+
+Caller 以 `slot Name:` 提供 named slot content：
+
+```voil
+Modal():
+	slot header:
+		std.h2("Confirm")
+
+	std.p("Delete this item?")
+
+	slot footer:
+		Button(text="Cancel")
+		Button(text="Delete")
+```
+
+`slot` 不是 ordinary function call，而是 compiler-level UI insertion point。
+
+Slot content 保留 caller lexical scope，不會因為被插入 component outlet 而改用 callee/component lexical scope。Component 也不會因此取得 caller local bindings；若未來需要把 component-local 值傳入 slot，需另外設計明確的 slot-parameter 機制。
+
 ## Draft
 
 ### D-001：變數模型縮減為 `const` / `state` / `shared`
@@ -397,16 +443,15 @@ CSS 能力與語法範圍過大，暫不把 `container(display=...)` 或自訂 s
 
 需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 component block 內可接受哪些 UI roots。
 
-### O-004：Component children / slot model
+### O-004：Slot cardinality / typing
 
-需要定義：
+Default/named slot syntax 已定案，仍需定義：
 
-```voil
-UserCard(...):
-	...
-```
-
-child content 的型別、named slot、fragment 與 ownership/lifecycle 語意。
+- slot 是 required 或 optional 的宣告方式；
+- 同一 named slot 是否可提供多次；
+- 同一 slot outlet 是否可重複出現，以及重複時是 clone 還是 move；
+- slot parameter / scoped-slot 是否需要；
+- slot content 的型別模型。
 
 ### O-005：Event type model
 
