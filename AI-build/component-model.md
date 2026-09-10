@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current component declaration, automatic export, instance scope and compiler reachability model.
+This document defines the current component declaration, automatic export, instance scope, slot model and compiler reachability model.
 
 ## 1. Explicit component declaration
 
@@ -207,7 +207,75 @@ The recommended, but not yet accepted, alias form is:
 import UserBtn as PrimaryBtn, IconBtn as CompactBtn from "./buttons.voil"
 ```
 
-## 7. Unused component elimination
+## 7. Component children and slots
+
+Status: `Accepted` baseline.
+
+A component invocation opens child content with the same `:` + indentation model used by the rest of Voiles.
+
+```voil
+Card(title="Profile"):
+	std.p(user.name)
+	std.p(user.email)
+```
+
+Ordinary child statements that are not inside a named-slot block form the default slot content.
+
+A component renders the default slot with the compiler-level `slot` outlet:
+
+```voil
+component Card(title: String):
+	container:
+		std.h2(title)
+		slot
+```
+
+`slot` is not an ordinary function call. It marks a UI insertion point owned by the component declaration.
+
+Named slots use the same keyword with a slot name. The component declares insertion points:
+
+```voil
+component Modal():
+	container:
+		slot header
+		slot
+		slot footer
+```
+
+The caller supplies named content using `slot Name:` blocks while unwrapped child content still targets the default slot:
+
+```voil
+Modal():
+	slot header:
+		std.h2("Confirm")
+
+	std.p("Delete this item?")
+
+	slot footer:
+		Button(text="Cancel")
+		Button(text="Delete")
+```
+
+### 7.1 Slot lexical scope
+
+Status: `Accepted`.
+
+Slot content preserves the caller's lexical scope.
+
+```voil
+const username = "Alice"
+
+Card():
+	std.p(username)
+```
+
+`username` resolves where the `Card()` invocation is written. Moving that content into the component's `slot` outlet does not make the content part of the component declaration's lexical scope.
+
+The component controls placement, but it does not gain lexical access to caller-local names merely because it renders their slot content. Likewise caller slot content cannot implicitly access component-local `const`, `state` or helper functions unless those values are explicitly exposed through a later slot-parameter mechanism.
+
+Required/optional slot declarations, duplicate named-slot provision, repeated slot outlets, slot parameters and slot type details remain open.
+
+## 8. Unused component elimination
 
 Status: `Accepted` compiler goal.
 
@@ -229,7 +297,7 @@ An imported component that is never invoked can also be removed when removing it
 
 Component-local initialization occurs only when the component is instantiated. Therefore an unused component declaration must not create component state, lifecycle work or render output merely because its containing module exists.
 
-However the compiler must not blindly remove an entire module only because all of its component declarations are unused. If module-top-level initialization has observable side effects, those effects must be preserved unless effect analysis proves the module itself removable.
+However the compiler must not blindly remove an entire module only because all of its component declarations are unused. If module-top-level initialization can have observable side effects, those effects must be preserved unless effect analysis proves the module itself removable.
 
 Therefore dead-code elimination is semantics-preserving, not merely name-based.
 
@@ -240,23 +308,28 @@ Long-term direction:
 - remove unreachable helper functions/types/constants when safe;
 - remove entire modules only when no observable top-level behavior remains.
 
-## 8. Initial grammar sketch
+## 9. Initial grammar sketch
 
 Descriptive only:
 
 ```text
-componentDecl     := "component" PascalIdentifier parameters componentBlock
-componentBlock    := ":" NEWLINE INDENT componentItem* DEDENT
+componentDecl       := "component" PascalIdentifier parameters componentBlock
+componentBlock      := ":" NEWLINE INDENT componentItem* DEDENT
 
-componentItem     := bindingDecl
-                  | functionDecl
-                  | controlFlow
-                  | structuralBlock
-                  | containerBlock
-                  | standardHtmlCall
-                  | componentCall
+componentItem       := bindingDecl
+                    | functionDecl
+                    | controlFlow
+                    | structuralBlock
+                    | containerBlock
+                    | standardHtmlCall
+                    | componentCall
+                    | slotOutlet
 
-componentCall     := PascalIdentifier callArguments childBlock?
+componentCall       := PascalIdentifier callArguments childBlock?
+childBlock          := ":" NEWLINE INDENT childItem* DEDENT
+childItem           := namedSlotBlock | uiStatement
+namedSlotBlock      := "slot" identifier block
+slotOutlet          := "slot" identifier?
 
 componentImportDecl := "import" componentImportItem ("," componentImportItem)* "from" stringLiteral
 componentImportItem := PascalIdentifier componentAlias?
@@ -269,9 +342,15 @@ The module symbol table must reject duplicate component declaration names.
 
 The comma-separated component import list is Accepted. `componentAlias` remains Draft until the alias form is explicitly accepted.
 
-## 9. Remaining component decisions
+Slot child content must retain the caller lexical environment through lowering rather than being rebound as if it were declared inside the callee component.
 
-- component children / slot model;
+## 10. Remaining component decisions
+
+- required vs optional slot declarations;
+- whether the same named slot may be supplied more than once;
+- whether the same slot outlet may appear more than once and, if so, whether content is cloned or moved;
+- slot parameter / scoped-slot model, if needed;
+- slot content type model;
 - callback/event parameter typing;
 - named-argument separator finalization;
 - component import alias syntax finalization (`as` currently recommended);
