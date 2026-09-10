@@ -30,6 +30,10 @@
 - [x] Use compiler-level `slot` outlets inside component declarations.
 - [x] Support named slot provision with `slot Name:` blocks.
 - [x] Preserve caller lexical scope for default and named slot content.
+- [x] Make slot outlets optional by default in v0.1.
+- [x] Permit at most one default outlet and one outlet per named slot in a component.
+- [x] Permit each named slot to be provided at most once per invocation.
+- [x] Reject unknown named slots and default children when no default outlet exists.
 
 ### P0 — parser-blocking decisions
 
@@ -42,6 +46,7 @@
 - [ ] Finalize component import alias grammar; current recommendation: item-local `as`.
 - [x] Define component child-block/default-slot grammar baseline.
 - [x] Define named slot block / slot outlet grammar baseline.
+- [x] Define slot cardinality validation baseline.
 - [ ] Define initial expression precedence table.
 - [ ] Define syntax error recovery for malformed indentation and unfinished blocks.
 
@@ -79,11 +84,9 @@
 - [x] Define multi-component import list syntax.
 - [x] Define default/named slot surface syntax.
 - [x] Define slot lexical-scope ownership as caller-side.
+- [x] Define v0.1 slot cardinality: optional, single outlet/provision, unknown-slot rejection.
 - [ ] Finalize component parameter / prop declaration semantics.
 - [ ] Finalize component import alias syntax (`as` currently recommended).
-- [ ] Define required vs optional slot declarations.
-- [ ] Define duplicate named-slot provision behavior.
-- [ ] Define repeated slot-outlet behavior.
 - [ ] Define slot parameter / scoped-slot model if needed.
 - [ ] Define slot content type model.
 - [ ] Define component event/callback prop typing.
