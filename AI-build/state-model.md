@@ -2,11 +2,11 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current direction for `const`, `state`, `shared`, lexical scope, module instancing, component parameters/instance state, component identity and slot lexical scope.
+This document defines the current direction for `const`, `state`, `shared`, lexical scope, scoped modules, component parameters/identity/lifecycle and slot lexical scope.
 
 ## 1. Lexical scope
 
-`const`, `state` and `shared` names follow lexical scope for name visibility.
+`const`, `state` and `shared` names follow lexical scope for visibility.
 
 Name resolution searches from the innermost block outward. An inner declaration may shadow an outer declaration.
 
@@ -19,12 +19,11 @@ fn count():
 fn count_2():
 	state i = 5
 	i += 1
-	# local i == 6
 ```
 
-In `count()`, `i` resolves to the outer binding. In `count_2()`, the local `state i` shadows the outer binding.
+In `count()`, `i` resolves to the outer binding. In `count_2()`, the local `state i` shadows it.
 
-A declaration is not visible before its declaration point. Redeclaring the same name in the same lexical scope is a compile error.
+A declaration is not visible before its declaration point. Redeclaration in the same lexical scope is a compile error.
 
 ## 2. Binding kinds
 
@@ -36,8 +35,8 @@ const title = "Voiles"
 
 Semantics:
 
-- immutable binding;
-- can be initialized from a runtime expression;
+- immutable runtime binding;
+- may be initialized from a runtime expression;
 - does not mean compile-time constant;
 - follows ordinary lexical scope;
 - cannot be reassigned.
@@ -53,10 +52,10 @@ Semantics:
 - mutable binding;
 - reactive when observed by generated UI/runtime dependencies;
 - follows lexical scope;
-- storage lifetime is tied to the owning scope/module/component instance;
+- storage lifetime is tied to its owning scope/module/component instance;
 - mutation keeps the declared/inferred type fixed.
 
-A function-local state is recreated for each function invocation unless later captured by an explicitly supported closure/lifetime mechanism.
+Function-local state is recreated for each function invocation unless later captured by an explicitly supported closure/lifetime mechanism.
 
 ```voil
 fn count_once() -> Int:
@@ -65,15 +64,21 @@ fn count_once() -> Int:
 	return i
 ```
 
-Every independent call begins from `5` and returns `6`.
+Each independent call begins from `5` and returns `6`.
 
-## 3. Scoped module instances
+## 3. Scoped `.voil` module instances
 
-Voiles `.voil` imports are not assumed to behave like application-global JavaScript ESM singletons.
+Voiles `.voil` imports are not application-global JavaScript ESM-style singletons by default.
 
 Accepted rule:
 
-> The same importer scope + the same resolved `.voil` module path resolves to the same module instance.
+```text
+same importer scope + same resolved .voil path
+	-> same module instance
+
+different importer scope + same resolved .voil path
+	-> different module instance
+```
 
 Example:
 
@@ -85,37 +90,25 @@ state i = 0
 ```voil
 # a.voil
 import btn_state from "./btn_state.voil"
-
 btn_state.i += 1
-# btn_state.i == 1
+# i == 1 in A's module instance
 ```
 
 ```voil
 # b.voil
 import btn_state from "./btn_state.voil"
-
 btn_state.i += 1
-# btn_state.i == 1
+# i == 1 in B's module instance
 ```
 
-Conceptually:
-
-```text
-btn_state.voil definition
-	├─ imported from a.voil -> instance A -> i = 1
-	└─ imported from b.voil -> instance B -> i = 1
-```
-
-Different import aliases do not create extra instances when importer scope and resolved path are identical:
+Different aliases do not create extra instances in the same importer scope:
 
 ```voil
 import a from "./store.voil"
 import b from "./store.voil"
 ```
 
-Within this importer scope, `a` and `b` refer to the same resolved module instance.
-
-This identity rule prevents aliases or duplicate import statements from silently cloning mutable state.
+`a` and `b` resolve to the same module instance in that importer scope.
 
 ## 4. `shared`
 
@@ -125,15 +118,13 @@ Sharing is declared on the variable, not on the module or import statement.
 shared i = 1
 ```
 
-`shared` does not require `state` because mutability is inherent in the declaration.
-
 Accepted semantics:
 
-- mutable;
+- mutable by definition;
 - reactive when observed by UI/runtime dependencies;
 - one shared storage cell per declaration identity across all instances of the declaring `.voil` module within the application runtime;
-- ordinary imports do not need a `shared import` form;
-- `shared` is only legal at module top level.
+- no `shared import` form is required;
+- `shared` is legal only at module top level.
 
 Example:
 
@@ -156,68 +147,32 @@ store.count += 1
 # shared count == 2
 ```
 
-The module instances remain different, but `shared count` intentionally points to the same shared storage cell.
+The ordinary module instances remain different while `shared count` points to the same shared storage cell.
 
-Conceptually:
-
-```text
-store.voil declaration: shared count
-	              │
-	      shared storage cell
-	              │
-	      ┌───────┴───────┐
-	      │               │
-	instance A        instance B
-	(imported by A)   (imported by B)
-```
-
-This keeps sharing explicit at the exact declaration that can create cross-scope mutation.
-
-## 5. `shared` is top-level only
-
-Status: `Accepted`.
-
-`shared` represents application-global storage, so it is valid only at module top level.
-
-Valid:
-
-```voil
-shared session = none
-
-fn update_session(...):
-	...
-```
-
-Invalid inside a component:
+Invalid nested declarations:
 
 ```voil
 component Counter():
-	shared i = 0
+	shared i = 0 # compile error
 ```
-
-Invalid inside a function:
 
 ```voil
 fn test():
-	shared i = 0
+	shared i = 0 # compile error
 ```
-
-Also invalid inside other nested blocks:
 
 ```voil
 if ready:
-	shared cache = none
+	shared cache = none # compile error
 ```
 
-The compiler must report these declarations as syntax/semantic errors.
+This avoids implicit static-local semantics and ambiguous recursive/closure/async lifetimes.
 
-This avoids introducing static-local semantics and avoids ambiguity around recursive calls, closures, async tasks and block lifetime.
-
-## 6. Component declaration, parameters and instance scope
+## 5. Component parameters and instance scope
 
 Status: `Accepted`.
 
-A user component is explicitly declared with `component`:
+Component parameters are immutable input bindings.
 
 ```voil
 component UserBtn(
@@ -225,25 +180,19 @@ component UserBtn(
 	disabled: Bool = false
 ):
 	state count = 0
-
-	fn click():
-		count += 1
-
-	container:
-		std.button(
-			onclick=click
-		)
-		std.p(text)
-		std.p(count)
+	...
 ```
 
-Component parameters are immutable input bindings. A required parameter has no default; an optional parameter has a default. Component invocations are named-argument-only.
+Rules:
 
-Defaults are evaluated independently for each component invocation and initialized left-to-right. A default may reference only parameters already initialized earlier in the declaration.
+- no default -> required parameter;
+- default present -> optional parameter;
+- component invocation is named-argument-only;
+- defaults are evaluated independently for every new component instance;
+- parameter/default initialization is left-to-right;
+- a default may reference only earlier initialized parameters.
 
-Every component invocation creates an independent component instance scope when that invocation identity first becomes active.
-
-Usage:
+Every component invocation identity creates an independent component instance scope when that identity first becomes active.
 
 ```voil
 UserBtn(text="A")
@@ -253,62 +202,22 @@ UserBtn(text="B")
 Conceptually:
 
 ```text
-UserBtn invocation A
+UserBtn A
 	├─ text = "A"
-	└─ state count = 0
+	└─ state count A
 
-UserBtn invocation B
+UserBtn B
 	├─ text = "B"
-	└─ state count = 0
+	└─ state count B
 ```
 
-After clicking only A:
+A component instance is also an importer scope for ordinary scoped `.voil` dependencies. Therefore ordinary stateful dependencies are isolated per component instance unless they use `shared`.
 
-```text
-A.count = 1
-B.count = 0
-```
-
-The two component instances must not share ordinary `state` merely because they originate from the same component declaration.
-
-A component instance is also an importer scope for ordinary scoped `.voil` dependencies used by that component. Therefore, if the component imports another stateful module, each component instance receives its own dependency module instance unless the dependency uses `shared`.
-
-Example:
-
-```voil
-# local_store.voil
-state value = 0
-```
-
-```voil
-# Counter.voil
-import store from "./local_store.voil"
-
-component Counter():
-	...
-```
-
-Two `Counter()` invocations conceptually produce:
-
-```text
-Counter A
-	└─ local_store instance A
-		└─ state value
-
-Counter B
-	└─ local_store instance B
-		└─ state value
-```
-
-Within one component instance, importing the same resolved module path more than once still resolves to the same dependency module instance.
-
-`shared` remains the explicit exception: a `shared` declaration points to the same application-global storage regardless of which component instance reaches it.
-
-### 6.1 Parameter updates preserve instance state
+### 5.1 Reactive parameter updates preserve instance state
 
 Status: `Accepted`.
 
-A reactive change in a caller expression supplying a parameter updates that immutable parameter binding on the existing component instance. It does not recreate the component solely because the value changed.
+A reactive caller expression updates the immutable parameter value on the existing component instance instead of recreating the component.
 
 ```voil
 state name = "Alice"
@@ -316,34 +225,34 @@ state name = "Alice"
 UserCard(
 	name=name
 )
-```
 
-After:
-
-```voil
 name = "Bob"
 ```
 
-the same `UserCard` instance observes the new input value and preserves its component-local `state` and ordinary imported module instances.
+The same `UserCard` instance receives `"Bob"`; component-local `state` and ordinary imported module instances remain alive.
 
-Component-local `state` initializers run when a new component instance is created, not every time a parameter changes.
-
-Therefore:
+Component-local state initializers run only for a new component instance identity.
 
 ```voil
 component Input(value: String):
 	state current = value
 ```
 
-uses the initial `value` to initialize `current`; a later update to the `value` parameter does not implicitly overwrite `current`.
+`current` receives the initial `value` once. Later updates to the `value` parameter do not implicitly overwrite it.
 
-### 6.2 Structural identity, conditionals and keyed repeated UI
+## 6. Component identity and lifetime
 
 Status: `Accepted`.
 
-Outside repeated UI, a component invocation uses its stable structural invocation position as its runtime identity. Reactive changes to values used at that position preserve the same component instance.
+### 6.1 Structural identity
 
-A conditional branch is an explicit lifetime boundary. When a branch becomes inactive, component instances reachable only from that branch are unmounted and their ordinary instance-local state/dependency instances are released. Re-entering the branch creates new instances.
+Outside repeated UI, a stable structural invocation position defines component identity.
+
+Reactive value/parameter changes at the same position preserve the same instance.
+
+### 6.2 Conditional lifetime
+
+Conditional branch removal is an unmount boundary.
 
 ```voil
 if show_profile:
@@ -352,21 +261,23 @@ if show_profile:
 	)
 ```
 
-Conceptually:
-
 ```text
 false -> true
 	-> create instance
 
 true -> false
 	-> unmount instance
-	-> release local state/dependencies
+	-> release ordinary local state/dependency instances
 
 false -> true
 	-> create new instance
 ```
 
-Repeated UI that creates component instances must define explicit iteration identity using `key`:
+Voiles does not implicitly keep branch-local component state hidden after the branch becomes inactive.
+
+### 6.3 Keyed repeated UI
+
+Repeated UI that creates components requires explicit iteration identity:
 
 ```voil
 for user in users key user.id:
@@ -375,45 +286,87 @@ for user in users key user.id:
 	)
 ```
 
-Voiles does not silently use the iteration index/list position as component identity. A component-instantiating UI loop without `key` is therefore a compile error in v0.1.
+Voiles does not silently use iteration index/list position as identity.
 
-Stable keys preserve instance state across reorders. If items keyed `A`, `B`, `C` reorder to `C`, `A`, `B`, the runtime preserves all three component instances and only changes rendered ordering.
+A component-instantiating repeated UI loop without `key` is a compile error in v0.1.
 
-If a key disappears, its instance is unmounted. If a new key appears, a new instance is created. If an item's key changes, that is an identity change: the old instance is removed and a new instance is initialized.
+Stable keys preserve component instances across reorder. Removed keys unmount their instances; new keys create new instances; changed keys replace identity.
 
-For v0.1, accepted key types are stable scalar `String` or `Int` values. Duplicate keys within one repeated UI evaluation are invalid. Because uniqueness may depend on runtime data, duplicate-key detection is a runtime validation error rather than an ambiguous reuse heuristic.
+v0.1 keys are `String` or `Int`.
 
-Ordinary algorithmic loops that do not instantiate repeated UI components do not require `key`.
+Duplicate keys in the same repeated UI evaluation are runtime errors because uniqueness can depend on runtime data.
 
-## 7. Component export identity
+Ordinary algorithmic loops that do not create repeated component UI do not require keys.
 
-Status: `Accepted`.
+## 7. Component mount/cleanup lifetime
 
-Every top-level `component Name(...):` declaration is automatically part of the module's component export surface. Source code does not need an `export` keyword.
+Status: `Accepted` for v0.1.
 
-A `.voil` file may contain multiple component declarations, and each declaration has its own component identity.
+Component-owned resources use `mount:` with an optional nested `cleanup:` block.
 
 ```voil
-component UserBtn(...):
-	...
+component Clock():
+	state now = get_time()
 
-component IconBtn(...):
-	...
+	mount:
+		const timer = start_timer():
+			now = get_time()
+
+		cleanup:
+			timer.stop()
+
+	std.p(now)
 ```
 
-Component names must be unique within the module.
+Lifecycle semantics:
 
-This rule is called automatic or implicit component export. It should not be modeled as JavaScript's single `default export`, because Voiles permits more than one automatically exportable component declaration per module.
+```text
+new mounted instance
+	-> mount runs exactly once
 
-Component definitions that are unreachable from application entry points may be removed by compiler tree-shaking. Their component-local state is never instantiated unless the component itself is invoked.
+reactive parameter/state update
+	-> same instance
+	-> mount does not rerun
 
-Component imports may select multiple declarations using a comma-separated list. Alias syntax remains a separate Draft decision.
+keyed reorder with same key
+	-> same instance
+	-> mount does not rerun
+	-> cleanup does not run
+
+instance unmount
+	-> cleanup runs exactly once
+	-> instance-local state/dependencies released
+```
+
+`cleanup:` is valid only inside `mount:` and may capture lexical bindings from the enclosing mount block.
+
+```voil
+mount:
+	const subscription = store.subscribe(update)
+
+	cleanup:
+		subscription.close()
+```
+
+This keeps resource creation and teardown in one lexical lifecycle scope without requiring the resource handle to be stored in component `state`.
+
+Conditional and keyed identity interact with lifecycle as follows:
+
+- conditional branch removal -> cleanup then unmount;
+- conditional re-entry -> new instance, then mount;
+- keyed reorder with unchanged key -> no mount/cleanup;
+- key removal/replacement -> cleanup old instance;
+- new key -> mount new instance.
+
+v0.1 does not define reactive `effect`, dependency arrays or automatic effect reruns.
+
+Cleanup of ordinary scoped module instances is still a separate module-lifecycle decision.
 
 ## 8. Slot lexical scope
 
 Status: `Accepted`.
 
-Component child content is lexically owned by the caller, even though the callee decides where that content is rendered through `slot` outlets.
+Component child content is lexically owned by the caller even though the callee chooses the insertion point through `slot` outlets.
 
 ```voil
 const username = "Alice"
@@ -422,7 +375,7 @@ Card():
 	std.p(username)
 ```
 
-If `Card` renders its default children with:
+If `Card` renders:
 
 ```voil
 component Card():
@@ -430,9 +383,9 @@ component Card():
 		slot
 ```
 
-then `username` still resolves in the caller scope where `Card()` appears. The slot body is not rebound into the lexical scope of the `Card` declaration.
+then `username` still resolves in the caller scope.
 
-The same rule applies to named slot blocks:
+The same applies to named slots:
 
 ```voil
 Modal():
@@ -440,11 +393,11 @@ Modal():
 		std.h2(username)
 ```
 
-The component controls the insertion point but cannot implicitly access caller-local bindings through slot projection. Likewise slot content cannot implicitly access component-local `const`, `state` or helper bindings.
+The component cannot implicitly access caller-local bindings through slot projection, and slot content cannot implicitly access component-local bindings.
 
-A future slot-parameter/scoped-slot feature, if added, must explicitly declare any values crossing from the component instance into caller-authored slot content.
+Any future scoped-slot parameters must explicitly define values crossing that boundary.
 
-## 9. State identity summary
+## 9. State and identity summary
 
 ```text
 const
@@ -452,78 +405,50 @@ const
 	lexical scope
 
 component parameter
-	immutable input binding
-	named-only at invocation
-	default evaluated per component invocation
-	parameter updates preserve component instance/local state
+	immutable input
+	named-only invocation
+	default evaluated per new instance
+	parameter update preserves instance/local state
 
 state
 	mutable
 	lexical scope
-	storage belongs to current scope/module/component instance
-	different importer scopes may receive independent module state
-	different component invocation identities receive independent component state
+	storage belongs to owning function/module/component instance
 
 shared
 	mutable
 	module top-level only
-	storage is shared across module and component instances
-	intended for explicit application-global state
+	one application-global cell per declaration identity
+
+stable structural component position
+	-> preserve instance across reactive updates
+
+conditional removal
+	-> cleanup component-owned mount resources
+	-> unmount
+	-> release ordinary instance-local state/dependencies
+
+conditional re-entry
+	-> new instance
+	-> mount
+
+repeated UI
+	-> explicit String/Int key required for component identity
+	-> same key preserves instance across reorder
+	-> removed/changed key unmounts old identity
+	-> new key creates/mounts new identity
 
 slot content
 	caller lexical scope
 	callee controls placement only
 ```
 
-## 10. Module / component identity summary
+## 10. Remaining decisions
 
-```text
-same importer scope + same resolved path
-	-> same module instance
-
-different importer scope + same resolved path
-	-> different module instance
-
-state in that module
-	-> independent per module instance
-
-component declaration
-	-> explicit UI component identity
-	-> automatically exportable
-
-stable structural invocation position
-	-> same component instance across reactive value updates
-
-conditional branch removal
-	-> unmount component instance
-	-> release ordinary local state/dependency instances
-
-conditional branch re-entry
-	-> new component instance
-
-repeated UI
-	-> explicit key required when components are instantiated
-	-> same key preserves instance across reorder
-	-> removed/changed key removes old identity
-	-> new key creates new identity
-
-parameter update on existing invocation identity
-	-> same component instance
-	-> local state and dependency instances retained
-
-slot content
-	-> caller lexical environment is retained across projection
-
-shared in that module
-	-> same shared storage across all instances
-```
-
-## 11. Remaining decisions
-
-- Whether `shared` is always reactive or whether reactivity is generated only when an observer exists. Current preference: mutable declaration with compiler-generated reactivity only when observed.
+- Whether `shared` is always reactive or reactivity is generated only when an observer exists. Current preference: compiler-generated reactivity only when observed.
 - Component import alias syntax.
 - Exact export/access syntax for non-component module bindings.
-- Slot parameters/content typing if a concrete use case requires them.
-- Cyclic import initialization rules for scoped module instances.
-- Exact cleanup hook/API semantics when a component/importer/module instance becomes unreachable.
-- Top-level side-effect policy and how it constrains whole-module tree-shaking.
+- Slot parameter/content typing if a concrete use case requires it.
+- Cyclic import initialization for scoped module instances and `shared` bindings.
+- Cleanup/lifetime rules for ordinary scoped module instances when their importer scope becomes unreachable.
+- Module top-level side-effect policy and whole-module tree-shaking boundary.
