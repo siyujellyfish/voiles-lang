@@ -53,15 +53,33 @@ Both components are automatically exportable. Their names must be unique within 
 
 This is intentionally called automatic or implicit component export rather than JavaScript-style `default export`: JavaScript permits only one default export per module, while Voiles allows multiple automatically exportable component declarations.
 
-For the current v0.1 direction, importing a component by declaration name is the minimum required behavior:
+A single component may be imported by declaration name:
 
 ```voil
 import UserBtn from "./buttons.voil"
 ```
 
-This resolves the automatically exported `component UserBtn` declaration in `buttons.voil`.
+Multiple components from the same `.voil` module use a comma-separated import list:
 
-Exact aliasing and multi-symbol import syntax remain open.
+```voil
+import UserBtn, IconBtn from "./buttons.voil"
+```
+
+Each imported name resolves the automatically exported component declaration with the same name.
+
+Component import alias syntax remains Draft. The current recommendation is an item-local `as` form:
+
+```voil
+import UserBtn as PrimaryBtn, IconBtn as SmallIconBtn from "./buttons.voil"
+```
+
+Mixed aliased and non-aliased items would therefore be valid if this alias form is accepted:
+
+```voil
+import UserBtn, IconBtn as SmallIconBtn from "./buttons.voil"
+```
+
+Non-component module/default/named/namespace import semantics remain a separate module-system decision.
 
 ## 3. Component parameters are the public input surface
 
@@ -152,7 +170,7 @@ Automatic component export does not imply that every module-level binding become
 
 The exact export/access model for helper functions, types and bindings is still open.
 
-For component imports, the minimum required behavior is declaration-name resolution:
+For component imports, declaration-name resolution is accepted:
 
 ```voil
 # UserBtn.voil
@@ -177,7 +195,17 @@ component IconBtn(...):
 	...
 ```
 
-both declarations are public component symbols. The final syntax for importing several symbols at once or importing under aliases remains open.
+both declarations are public component symbols and may be imported together:
+
+```voil
+import UserBtn, IconBtn from "./buttons.voil"
+```
+
+The recommended, but not yet accepted, alias form is:
+
+```voil
+import UserBtn as PrimaryBtn, IconBtn as CompactBtn from "./buttons.voil"
+```
 
 ## 7. Unused component elimination
 
@@ -229,18 +257,24 @@ componentItem     := bindingDecl
                   | componentCall
 
 componentCall     := PascalIdentifier callArguments childBlock?
+
+componentImportDecl := "import" componentImportItem ("," componentImportItem)* "from" stringLiteral
+componentImportItem := PascalIdentifier componentAlias?
+componentAlias      := "as" PascalIdentifier
 ```
 
 `sharedDecl` is excluded from `componentItem` because `shared` is module-top-level only.
 
 The module symbol table must reject duplicate component declaration names.
 
+The comma-separated component import list is Accepted. `componentAlias` remains Draft until the alias form is explicitly accepted.
+
 ## 9. Remaining component decisions
 
 - component children / slot model;
 - callback/event parameter typing;
 - named-argument separator finalization;
-- exact multi-component import and alias syntax;
+- component import alias syntax finalization (`as` currently recommended);
 - mount/unmount and cleanup lifecycle;
 - whether module-level mutable `state` is legal in modules that also declare components;
 - helper function/type export rules;
