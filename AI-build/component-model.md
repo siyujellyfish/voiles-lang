@@ -379,7 +379,7 @@ For keyed repeated UI:
 - key replacement/change -> cleanup old instance, then mount new instance;
 - new key -> mount new instance.
 
-`cleanup` defines component-owned resource teardown. Cleanup rules for ordinary imported scoped modules remain a separate module-lifecycle decision.
+Ordinary scoped `.voil` dependency modules have their own accepted `init:` / nested `cleanup:` lifecycle. When a component instance is unmounted, owned dependency modules are torn down recursively before the component's own `cleanup:` runs. Full scoped-module ownership semantics are defined in [`state-model.md`](./state-model.md).
 
 ## 6. Scope inside and outside component blocks
 
@@ -566,7 +566,8 @@ Semantic validation must:
 - validate slot cardinality and unknown slots;
 - permit `cleanup:` only as a nested lifecycle block inside `mount:`;
 - preserve mount lexical bindings for cleanup capture;
-- ensure `mount:` executes once per mounted instance identity and `cleanup:` once per unmount.
+- ensure `mount:` executes once per mounted instance identity and component `cleanup:` once per unmount;
+- tear down owned ordinary scoped-module dependencies before running the owner component cleanup.
 
 ## 10. Remaining component decisions
 
@@ -574,7 +575,6 @@ Semantic validation must:
 - slot content type model;
 - callback/event parameter typing;
 - component import alias syntax finalization (`as` currently recommended);
-- scoped module cleanup/lifetime semantics separate from component-owned `mount` resources;
 - whether module-level mutable `state` is legal in modules that also declare components;
 - helper function/type export rules;
 - exact reachability/effect model used by tree-shaking.
