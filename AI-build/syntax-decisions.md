@@ -263,6 +263,31 @@ Component-local initialization 只在 invocation 時發生，因此未被使用�
 
 若 module 另有獨立 top-level side effects，是否能連同整個 module 移除仍由後續 module side-effect policy 決定。
 
+### A-020：多 Component import 使用逗號分隔
+
+同一 `.voil` module 的多個自動 export component 直接寫在同一 import statement，以逗號分隔：
+
+```voil
+import A, B from "./c.voil"
+```
+
+每個名稱依 component declaration name 解析。例如：
+
+```voil
+# buttons.voil
+component UserBtn(...):
+	...
+
+component IconBtn(...):
+	...
+```
+
+```voil
+import UserBtn, IconBtn from "./buttons.voil"
+```
+
+此規則只定案 component symbol list 的表面語法；non-component module/default/named/namespace import semantics 仍分開討論。
+
 ## Draft
 
 ### D-001：變數模型縮減為 `const` / `state` / `shared`
@@ -328,6 +353,22 @@ param id: Int
 
 compiler 依 route segment 建立 typed binding；轉換失敗不得把 invalid value 傳入頁面。
 
+### D-006：Component import alias 使用 item-local `as`
+
+目前推薦：
+
+```voil
+import A as X, B as Y from "./c.voil"
+```
+
+alias 綁在個別 import item 上，因此混用亦可：
+
+```voil
+import A, B as SmallB from "./c.voil"
+```
+
+選擇 `as` 的理由是避免與 assignment / named argument 的 `=` 混淆，也不需要引入 `{ ... }` import wrapper。此語法尚未升為 Accepted。
+
 ## Open
 
 ### O-001：CSS / Voiles layout integration
@@ -382,9 +423,13 @@ child content 的型別、named slot、fragment 與 ownership/lifecycle 語意�
 - semantic block 與 `std.*` API 的邊界；
 - Web platform versioning。
 
-### O-007：Import symbol forms
+### O-007：Non-component import symbol forms
 
-已定案 module path 必須使用字串；component 會自動 export，但多 component module 的精確 import、alias、named/namespace import，以及 JS/npm interop grammar 尚未定案。
+Component 單/多 symbol import 已有基本語法；仍需定義：
+
+- component alias 最終語法（目前 `as` 為 Draft）；
+- non-component default/named/namespace import；
+- JS/npm interop import grammar。
 
 ### O-008：Async/error syntax
 
