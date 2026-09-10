@@ -74,6 +74,7 @@ Core properties:
 13. every declared component is automatically exportable; source code does not require an `export` keyword.
 14. unused component declarations are eligible for compiler dead-code elimination.
 15. multiple components from one module use a comma-separated import list.
+16. component children use default/named `slot` projection while retaining caller lexical scope.
 
 ---
 
@@ -556,7 +557,7 @@ The boundary between syntax-level structural HTML (`main:`) and `std.*` HTML API
 
 ## 14. User components
 
-Status: `Accepted` declaration, automatic export, invocation and instance-isolation baseline.
+Status: `Accepted` declaration, automatic export, invocation, instance-isolation and slot baseline.
 
 ### 14.1 Declaration
 
@@ -674,16 +675,79 @@ Within one component instance, the same resolved module path still maps to one d
 
 `shared` remains application-global across all component instances.
 
-### 14.4 Children
+### 14.4 Children and slots
 
-Component children, when supported, use the same block syntax:
+Status: `Accepted` baseline.
+
+Component invocation child blocks use the same `:` + indentation model as other Voiles blocks.
 
 ```voil
 Card(title="Profile"):
 	std.p(user.name)
+	std.p(user.email)
 ```
 
-The child/slot type model remains open.
+Ordinary child statements that are not inside a named-slot block form the default slot content.
+
+A component renders its default children with the compiler-level `slot` outlet:
+
+```voil
+component Card(title: String):
+	container:
+		std.h2(title)
+		slot
+```
+
+`slot` is not an ordinary function call. It marks the insertion point for caller-provided UI content.
+
+Named slots use the same keyword in both declaration and invocation contexts.
+
+Component outlets:
+
+```voil
+component Modal():
+	container:
+		slot header
+		slot
+		slot footer
+```
+
+Caller-provided slot content:
+
+```voil
+Modal():
+	slot header:
+		std.h2("Confirm")
+
+	std.p("Delete this item?")
+
+	slot footer:
+		Button(text="Cancel")
+		Button(text="Delete")
+```
+
+The unwrapped `std.p(...)` targets the default slot. `slot header:` and `slot footer:` target their corresponding named outlets.
+
+Slot content preserves caller lexical scope:
+
+```voil
+const username = "Alice"
+
+Card():
+	std.p(username)
+```
+
+`username` resolves in the scope where `Card()` is invoked, not in the lexical scope where `component Card` is declared. The component controls placement only.
+
+Caller-authored slot content cannot implicitly access component-local `const`, `state` or helper functions. If values need to cross from a component instance into slot content, that requires a later explicit slot-parameter/scoped-slot design.
+
+Still open:
+
+- required vs optional slot declaration semantics;
+- whether a named slot may be supplied more than once;
+- repeated slot outlet semantics;
+- slot parameters/scoped slots;
+- slot content type model.
 
 ### 14.5 Named arguments
 
@@ -852,16 +916,22 @@ component UserBtn(
 component IconBtn(icon: String):
 	container:
 		std.button(icon)
+
+component Card(title: String):
+	container:
+		std.h2(title)
+		slot
 ```
 
 Page:
 
 ```voil
 import std from "@voiles/html-base"
-import UserBtn, IconBtn from "../ui/components/buttons.voil"
+import UserBtn, IconBtn, Card from "../ui/components/buttons.voil"
 
 state page_count = 0
 shared session = none
+const username = "Alice"
 
 header:
 	std.h1("Voiles")
@@ -870,10 +940,14 @@ main:
 	UserBtn(text="First")
 	UserBtn(text="Second")
 	IconBtn(icon="plus")
+
+	Card(title="Profile"):
+		std.p(username)
+
 	std.p(page_count)
 ```
 
-Each `UserBtn()` invocation creates its own component instance scope. `state` remains scoped to its owner; `shared` is the explicit application-global form.
+Each `UserBtn()` invocation creates its own component instance scope. `state` remains scoped to its owner; `shared` is the explicit application-global form. `Card` places its caller-authored child content at `slot`, while `username` still resolves in the page/caller lexical scope.
 
 ---
 
@@ -901,15 +975,22 @@ importItem          := identifier importAlias?
 importAlias         := "as" identifier
 
 functionDecl        := "fn" identifier parameters returnType? block
-componentDecl       := "component" PascalIdentifier parameters block
+componentDecl       := "component" PascalIdentifier parameters componentBlock
+componentBlock      := ":" NEWLINE INDENT componentItem* DEDENT
 
 bindingDecl         := constDecl | stateDecl | sharedDecl
 constDecl           := "const" identifier typeAnnotation? "=" expression
 stateDecl           := "state" identifier typeAnnotation? "=" expression
 sharedDecl          := "shared" identifier typeAnnotation? "=" expression
 
+componentItem       := statement | slotOutlet
 structuralBlock     := structuralName callArguments? block
 componentCall       := PascalIdentifier callArguments childBlock?
+childBlock          := ":" NEWLINE INDENT childItem* DEDENT
+childItem           := namedSlotBlock | uiStatement
+namedSlotBlock      := "slot" identifier block
+slotOutlet          := "slot" identifier?
+
 standardHtmlCall    := identifier "." identifier callArguments
 callArguments       := "(" namedArgumentList? ")"
 namedArgument       := identifier "=" expression
@@ -923,16 +1004,17 @@ Semantic validation must:
 - require component declaration names to be unique within a module;
 - create an independent scope for each component invocation;
 - expose top-level component declarations automatically to component import resolution;
-- resolve each component import item by component declaration name before applying any accepted alias.
+- resolve each component import item by component declaration name before applying any accepted alias;
+- lower default and named slot content without rebinding its lexical environment from caller to callee.
 
 The grammar must still resolve:
 
 - multiline call indentation;
 - structural block name table;
-- component child blocks;
 - expression precedence;
 - CSS/style contexts;
 - component alias finalization;
+- slot cardinality/typing details;
 - non-component import/export semantics.
 
 ---
@@ -950,6 +1032,8 @@ The accepted syntax requires:
 - recovery after malformed indentation;
 - comma-separated import item parsing;
 - distinction between structural block, component declaration, standard HTML call, ordinary call and user component call;
+- parsing of component child blocks, named `slot Name:` blocks and component `slot` outlets;
+- preservation of caller lexical scope through slot lowering;
 - formatter stability;
 - component symbol indexing per module;
 - component dependency graph construction;
@@ -966,7 +1050,7 @@ Parser-blocking or near-blocking priorities:
 3. finalize named argument separator `=`;
 4. define top-level structural block grammar and valid structural names;
 5. finalize component import alias syntax (`as` currently recommended);
-6. define component child block grammar;
+6. define slot cardinality/required/optional and repeated-slot rules;
 7. define expression precedence;
 8. define `@voiles/html-base` minimum API surface;
 9. separately design CSS/layout integration before locking `container(...)` parameters;
