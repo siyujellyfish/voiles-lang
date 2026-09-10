@@ -2,7 +2,7 @@
 
 Status: `Draft` with accepted core semantics.
 
-This document defines the current component declaration, automatic export, instance scope, parameter model, slot model and compiler reachability model.
+This document defines the current component declaration, automatic export, instance scope, parameter model, identity model, slot model and compiler reachability model.
 
 ## 1. Explicit component declaration
 
@@ -252,7 +252,88 @@ new component invocation identity
 
 Changing a parameter therefore does not rerun component-local `state` initializers. In the earlier `Input(value)` example, a later `value` update does not overwrite `state current` unless component logic explicitly does so.
 
-The remaining identity question is how invocation identity is tracked when components appear in conditional branches or repeated/list UI.
+### 4.2 Component identity and keyed repeated UI
+
+Status: `Accepted`.
+
+A component invocation outside repeated UI has structural identity derived from its stable invocation position in the compiled UI structure. Reactive updates to expressions at that position preserve the existing instance.
+
+```voil
+state name = "Alice"
+
+UserCard(
+	name=name
+)
+```
+
+Updating `name` changes the parameter value on the same `UserCard` instance. Component-local `state` and scoped dependency instances are preserved.
+
+Conditional branches are lifetime boundaries. When a branch containing a component becomes inactive, that component instance is unmounted and its ordinary instance-local state is released. If the branch later becomes active again, a new component instance is created.
+
+```voil
+if show_profile:
+	UserCard(
+		name=user.name
+	)
+```
+
+Conceptually:
+
+```text
+false -> true
+	-> create UserCard instance
+
+true -> false
+	-> unmount UserCard instance
+	-> release ordinary instance-local state
+
+false -> true
+	-> create a new UserCard instance
+```
+
+Repeated UI must use explicit key identity when component instances are created inside the loop. Voiles does not silently use list position/index as component identity.
+
+```voil
+for user in users key user.id:
+	UserCard(
+		user=user
+	)
+```
+
+For v0.1, a UI loop that instantiates a component without an explicit key is a compile error:
+
+```voil
+for user in users:
+	UserCard(
+		user=user
+	) # compile error: repeated component UI requires key
+```
+
+The key belongs to the repeated UI iteration identity, not to a component parameter. It allows the runtime/compiler to preserve component instances across reorder operations.
+
+```text
+before: A B C
+after:  C A B
+```
+
+If the keys remain `A`, `B`, and `C`, all three component instances are preserved and only their rendered order changes.
+
+If a key disappears, its component instance is unmounted. If a new key appears, a new component instance is created. If an item's key changes, the old identity is removed and a new identity is created.
+
+For the v0.1 baseline, keys must have a stable scalar identity type accepted by the compiler, initially `String` or `Int`.
+
+Duplicate keys within the same repeated UI evaluation are invalid. Because duplicate-key uniqueness may depend on runtime data, the runtime must detect duplicates and fail deterministically rather than guessing which instance to reuse.
+
+```voil
+for user in users key user.id:
+	UserCard(
+		user=user
+	)
+```
+
+If two rendered iterations produce the same `user.id`, this is a runtime duplicate-key error.
+
+The explicit-key requirement applies only where repeated UI creates identity-bearing component instances. Ordinary algorithmic loops that do not instantiate repeated UI components do not require a key.
 
 ## 5. Scope inside and outside the component block
 
@@ -488,6 +569,8 @@ childItem           := namedSlotBlock | uiStatement
 namedSlotBlock      := "slot" identifier block
 slotOutlet          := "slot" identifier?
 
+keyedForUi          := "for" identifier "in" expression "key" expression block
+
 componentImportDecl := "import" componentImportItem ("," componentImportItem)* "from" stringLiteral
 componentImportItem := PascalIdentifier componentAlias?
 componentAlias      := "as" PascalIdentifier
@@ -507,14 +590,15 @@ Slot child content must retain the caller lexical environment through lowering r
 
 Semantic validation must also reject duplicate slot outlets, duplicate named-slot provisions, unknown named-slot provisions and default child content passed to a component with no default slot outlet.
 
+Repeated UI analysis must reject component-instantiating loops without an explicit `key` expression. The compiler must type-check the key as an accepted stable scalar identity type; v0.1 accepts `String` and `Int`. Runtime lowering must detect duplicate key values within one repeated UI evaluation.
+
 ## 10. Remaining component decisions
 
-- component identity in conditional/repeated UI and any key mechanism;
 - slot parameter / scoped-slot model, if needed;
 - slot content type model;
 - callback/event parameter typing;
 - component import alias syntax finalization (`as` currently recommended);
-- mount/unmount and cleanup lifecycle;
+- exact mount/unmount cleanup hooks and resource cleanup API;
 - whether module-level mutable `state` is legal in modules that also declare components;
 - helper function/type export rules;
 - exact reachability/effect model used by tree-shaking.
