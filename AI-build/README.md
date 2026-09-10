@@ -14,6 +14,7 @@
 
 - [`language-spec.md`](./language-spec.md)：`.voil` 語法規格草案與完整範例。
 - [`syntax-decisions.md`](./syntax-decisions.md)：已接受原則、暫定方案、待決策項目。
+- [`state-model.md`](./state-model.md)：`const` / `state` / `shared`、lexical scope 與 scoped module instance 模型。
 - [`todo.md`](./todo.md)：目前與下一階段工作項目。
 
 ## 更新規則
