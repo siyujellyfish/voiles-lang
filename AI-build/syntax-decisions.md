@@ -112,7 +112,7 @@ Component children 若存在，使用 `:` 開啟 child block，而不是 closing
 
 ### A-010：Reactive mutation 必須明確
 
-會觸發 UI dependency tracking 的資料必須使用明確的 reactive binding；普通 immutable binding 不因被 UI 引用就自動變成 reactive state。
+會觸發 UI dependency tracking 的資料必須使用明確的 mutable binding；普通 immutable binding 不因被 UI 引用就自動變成 reactive state。
 
 ### A-011：String 不等於可信 HTML
 
@@ -122,24 +122,81 @@ Component children 若存在，使用 `:` 開啟 child block，而不是 closing
 
 可缺失值使用 `Option<T>` 或其語法糖。Voiles 原生型別系統不以 `undefined` 作一般值。
 
+### A-013：Binding 使用 lexical scope 與 nearest-binding resolution
+
+名稱依 lexical scope 解析，由目前區塊向外尋找最近的 declaration。內層可 shadow 外層名稱。
+
+```voil
+state i = 1
+
+fn count():
+	i += 1
+
+fn count_2():
+	state i = 5
+	i += 1
+```
+
+`count()` 修改外層 `i`；`count_2()` 修改自己的 local `i`。
+
+同一 lexical scope 重複宣告同名 identifier 為 compile error；宣告前不可使用。
+
+### A-014：同 importer + 同 resolved path 共用同一 module instance
+
+普通 `.voil` import 採 scoped module instance 模型。
+
+```text
+same importer + same resolved path
+-> same module instance
+```
+
+即使使用不同 alias：
+
+```voil
+import a from "./store.voil"
+import b from "./store.voil"
+```
+
+在同一 importer 內仍指向同一個 resolved module instance，不允許藉由 alias 或重複 import 隱式複製 mutable state。
+
+不同 importer 對同一 `.voil` path 預設取得不同 module instance，因此普通 `state` 不會自然變成 application-global singleton。
+
+### A-015：共享性宣告在變數，而非 module/import
+
+Voiles 不採 `shared import` 或 shared-module 作為主要共享狀態模型。
+
+共享變數直接寫：
+
+```voil
+shared i = 1
+```
+
+`shared` 本身代表 mutable shared binding，因此不寫 `shared state i = 1`。
+
+同一 declaration 的 `shared` storage 會跨 declaring module 的不同 scoped module instances 共用。普通 `state` 則保留 module-instance 隔離。
+
+完整 scope/state 模型記錄於 [`state-model.md`](./state-model.md)。
+
 ## Draft
 
-### D-001：變數模型縮減為 `const` / `state`
+### D-001：變數模型縮減為 `const` / `state` / `shared`
 
 目前偏好：
 
 ```voil
 const title = "Voiles"
 state count = 0
+shared session = none
 ```
 
 語意候選：
 
 - `const`：immutable binding；值可以在 runtime 初始化，不等於 compile-time constant。
-- `state`：mutable + reactive binding；mutation 會觸發 dependency update。
+- `state`：mutable binding；storage 跟隨 lexical/module instance scope；被 UI/runtime dependency 觀察時由 compiler 產生 reactive update。
+- `shared`：mutable shared binding；跨 declaring module instances 共用 storage。
 - v0.1 不提供 `let` / `var`。
 
-尚需處理一般函式中的「非 reactive mutable local」需求。若確實必要，優先考慮之後加入限定於 function-local 的 `mut`，而不是濫用 `state`。
+尚需處理一般函式中的「非 reactive mutable local」需求。若確實必要，優先考慮之後加入限定於 function-local 的 `mut`，而不是增加多套一般變數模型。
 
 ### D-002：Named argument / component prop separator 使用 `=`
 
@@ -185,6 +242,18 @@ param id: Int
 
 compiler 依 route segment 建立 typed binding；轉換失敗不得把 invalid value 傳入頁面。
 
+### D-006：`shared` v0.1 限制為 module top-level
+
+目前偏好 v0.1 只允許：
+
+```voil
+shared session = none
+```
+
+出現在 module top-level。
+
+暫不允許 function/block-local `shared`，避免提前引入 static-local、recursive-call、closure 與 async task 間共享 storage 的複雜生命週期。
+
 ## Open
 
 ### O-001：CSS / Voiles layout integration
@@ -201,11 +270,11 @@ CSS 能力與語法範圍過大，暫不把 `container(display=...)` 或自訂 s
 
 ### O-002：一般非 reactive mutable local
 
-若只有 `const` / `state`，algorithmic function 內的 accumulator、loop-local mutation 等需求如何處理仍需確認。
+若主要只有 `const` / `state` / `shared`，algorithmic function 內的 accumulator、loop-local mutation 等需求如何處理仍需確認。
 
 候選：
 
-- 不提供，鼓勵 expression/iterator style。
+- 直接允許 function-local `state`，由 compiler 在無 observer 時降低成普通 mutable local。
 - 提供 function-local `mut`。
 - 使用其他受限 mutation construct。
 
@@ -246,6 +315,15 @@ child content 的型別、named slot、fragment 與 ownership/lifecycle 語意�
 ### O-008：Async/error syntax
 
 需決定 `async fn`、`Result<T, E>` propagation、throwing JS API interop 的具體語法。
+
+### O-009：Scoped module lifecycle / cycles
+
+需要定義：
+
+- scoped module instance 何時建立與釋放；
+- cyclic imports 的 initialization 順序；
+- `shared` declaration 在 cycle 中的初始化規則；
+- component invocation state identity 與 imported module instance identity 的關係。
 
 ## Deferred
 
