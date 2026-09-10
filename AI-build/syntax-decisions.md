@@ -334,6 +334,23 @@ Modal():
 
 Slot content 保留 caller lexical scope，不會因為被插入 component outlet 而改用 callee/component lexical scope。Component 也不會因此取得 caller local bindings；若未來需要把 component-local 值傳入 slot，需另外設計明確的 slot-parameter 機制。
 
+### A-022：Slot cardinality 採單一 optional outlet/provision
+
+v0.1 中 default 與 named slot outlet 都預設 optional。Caller 未提供內容時，該 outlet render nothing，不需要額外 required/optional 宣告語法。
+
+同一 component declaration 中：
+
+- default `slot` outlet 最多一個；
+- 每個 named `slot Name` outlet 最多一個。
+
+同一 component invocation 中，每個 named slot 最多提供一次。重複 outlet 或重複提供同名 named slot 都是 compile error。
+
+Caller 提供的 named slot 必須存在於 callee 的 declared outlets；unknown slot 直接 compile error。普通 child content 則要求 callee 存在 default `slot` outlet，否則同樣 compile error。
+
+一個 slot provision 內可以包含任意數量的 child UI nodes；cardinality 限制的是 slot outlet/provision 本身，不限制其中 node 數量。
+
+v0.1 不加入 required slot、重複 projection/cloning 或 scoped-slot parameter 語意。
+
 ## Draft
 
 ### D-001：變數模型縮減為 `const` / `state` / `shared`
@@ -443,15 +460,13 @@ CSS 能力與語法範圍過大，暫不把 `container(display=...)` 或自訂 s
 
 需要確認頁面是否允許多個 sibling structural root，例如 `header:` + `main:` + `footer:`，以及 component block 內可接受哪些 UI roots。
 
-### O-004：Slot cardinality / typing
+### O-004：Slot parameters / typing
 
-Default/named slot syntax 已定案，仍需定義：
+Default/named slot syntax 與 v0.1 cardinality 已定案。仍需定義：
 
-- slot 是 required 或 optional 的宣告方式；
-- 同一 named slot 是否可提供多次；
-- 同一 slot outlet 是否可重複出現，以及重複時是 clone 還是 move；
 - slot parameter / scoped-slot 是否需要；
-- slot content 的型別模型。
+- slot content 的型別模型；
+- 若未來需要 required slot，是否作為後續語法擴充。
 
 ### O-005：Event type model
 
