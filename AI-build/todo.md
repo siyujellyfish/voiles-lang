@@ -13,11 +13,14 @@
 - [x] Use `std.*`-style standard HTML namespace to visually distinguish native HTML APIs from user components.
 - [x] Use function-like PascalCase syntax for user component invocation.
 - [x] Use lexical scope with nearest-binding resolution and shadowing.
-- [x] Same importer + same resolved `.voil` path resolves to the same module instance.
-- [x] Different import aliases in the same importer do not clone module state.
+- [x] Same importer scope + same resolved `.voil` path resolves to the same module instance.
+- [x] Different import aliases in the same importer scope do not clone module state.
 - [x] Declare cross-module-instance sharing on the variable with `shared`, not on the module/import.
 - [x] `shared` is mutable by definition and does not require an additional `state` keyword.
 - [x] Restrict `shared` to module top-level only.
+- [x] Every component invocation creates an independent component instance scope.
+- [x] Component-local ordinary `state` is isolated per invocation.
+- [x] Ordinary scoped modules imported by a component are also isolated per component instance; `shared` remains global.
 
 ### P0 — parser-blocking decisions
 
@@ -33,14 +36,16 @@
 
 - [ ] Finalize `const` semantics as immutable runtime binding.
 - [ ] Finalize `state` semantics as mutable scoped binding with compiler-generated reactivity when observed.
-- [ ] Finalize `shared` semantics as mutable storage shared across declaring module instances.
+- [ ] Finalize `shared` semantics as mutable storage shared across declaring module/component instances.
 - [x] Restrict `shared` to module top-level.
+- [x] Define component invocation state identity as independent per invocation.
+- [x] Treat each component instance as an importer scope for ordinary scoped `.voil` dependencies.
 - [ ] Decide whether v0.1 removes `let` / `var` entirely.
 - [ ] Evaluate whether function-local non-reactive mutation requires `mut`, or whether unobserved local `state` lowers to ordinary mutable storage.
 - [ ] Define closure capture rules for `const` / `state`.
-- [ ] Define module-instance creation and cleanup lifecycle.
+- [ ] Define module/component-instance creation and cleanup lifecycle.
 - [ ] Define cyclic import initialization for scoped modules and `shared` bindings.
-- [ ] Define component invocation state identity relative to imported module instance identity.
+- [ ] Define how a `.voil` module exposes a renderable component surface without explicit file-role annotations.
 
 ### P1 — standard HTML surface
 
@@ -59,6 +64,7 @@
 - [ ] Define component children / slot model.
 - [ ] Define component event/callback prop typing.
 - [ ] Define whether multiple components may be declared in one `.voil` file.
+- [ ] Define component mount/unmount lifetime and cleanup semantics.
 
 ### P1 — container and CSS integration
 
