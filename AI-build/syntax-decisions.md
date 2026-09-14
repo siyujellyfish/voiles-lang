@@ -1,116 +1,82 @@
 # Voiles Syntax Decisions
 
-此文件記錄語法層級的設計決策。狀態定義：
+此文件記錄語法與核心 runtime 層級的設計決策。狀態：
 
-- `Accepted`：現階段視為基礎規格，除非出現明確架構衝突才調整。
-- `Draft`：已有偏好方案，但尚未鎖定。
-- `Open`：需後續討論或 prototype 驗證。
-- `Deferred`：刻意延後，不納入目前 MVP。
+- `Accepted`：v0.1 基礎規格，除非出現明確架構衝突才調整。
+- `Draft`：已有方向但尚未鎖定。
+- `Open`：需要獨立設計或 prototype。
+- `Deferred`：刻意不納入 v0.1 baseline。
 
 ## Accepted
 
 ### A-001：`.voil` 是獨立語言
 
-Voiles 不採 JSX/TSX template language 路線，也不把 TypeScript parser/type checker 當作語言核心。JS/TS 僅作為輸出目標、interop 邊界或工具鏈整合層。
+Voiles 不採 JSX/TSX template language 路線；JS/TS 是輸出與 interop 邊界，不是語言核心 parser/type checker。
 
-### A-002：File-based routing 不要求 route 宣告 path
+### A-002：File-based routing 不重複宣告 path
 
-`app/` 內檔案路徑即 URL route。一般頁面不寫 `route "/path"`，避免 filesystem 與 source code 出現兩份 path 真相來源。
+`app/` 內檔案路徑即 URL route，不在 source 中再維護第二份 route path。
 
-### A-003：Block 使用 `:` + significant indentation
-
-所有 block opener 以 `:` 結束 header，child hierarchy 由縮排決定。不使用 `{}` 作為一般 block delimiter，也不使用 HTML/XML closing tag。
+### A-003：所有 block 使用 `:` + significant indentation
 
 ```voil
 fn click_btn():
 	count += 1
 
 main:
-	container:
-		std.h1("Hello")
+	std.p(count)
 ```
 
-### A-004：`#` 僅作為註解起始符
+一般 block 不使用 `{}` 或 HTML/XML closing tag。
 
-```voil
-# comment
-```
+### A-004：`#` 僅為 line comment
 
 `#` 不承擔 HTML id shorthand 或其他語意。
 
-### A-005：Import module specifier 必須使用字串
+### A-005：Import module specifier 必須是 quoted string
 
 ```voil
 import std from "@voiles/html-base"
-import UserBtn from "../ui/components/UserBtn.voil"
+import UserBtn from "../ui/UserBtn.voil"
 ```
-
-套件、標準模組與相對路徑都使用 quoted module specifier。
 
 ### A-006：Function declaration 使用 `fn`
 
-```voil
-fn click_btn():
-	count += 1
-```
-
 `fn` 保留 declaration / invocation 的明確界線。
 
-### A-007：Page 可直接使用 semantic HTML structural blocks
+### A-007：Page 可直接使用 structural HTML blocks
 
-頁面不要求 `view:` wrapper 或第一行 `page` declaration：
+頁面不需要 `page` 或 `view:` wrapper。
 
-```voil
-header:
-	...
+### A-008：Native HTML 與 user component source surface 分離
 
-main:
-	...
-
-footer:
-	...
-```
-
-### A-008：Native HTML 與 user component 在 source 上明確區分
-
-Native HTML API 經由標準 HTML module namespace 使用：
-
-```voil
-import std from "@voiles/html-base"
-std.h1("Hello")
-```
-
-User component 使用 imported PascalCase symbol：
-
-```voil
-UserBtn(
-	text="just click"
-)
-```
-
-`std` 為官方文件與 formatter 建議的 canonical alias；是否提升為 reserved namespace 仍可後續評估。
+Native HTML 主要經 `std.*`；user component 使用 PascalCase invocation。
 
 ### A-009：Component invocation 採 function-like syntax
 
-User component 不使用 JSX/XML tag。Component children 使用 `:` 開啟 child block。
+```voil
+UserBtn(text="Save")
+```
 
-### A-010：Reactive mutation 必須明確
+Children 使用 `:` + indentation。
 
-會觸發 UI dependency tracking 的資料必須使用明確 mutable binding；immutable binding 不因被 UI 引用就自動變成 reactive state。
+### A-010：Mutable/reactive data 必須明確宣告
 
-### A-011：String 不等於可信 HTML
+Immutable binding 不因被 UI 讀取就自動變成 mutable/reactive state。
 
-一般 `String` 插入 HTML API 一律做 text escaping。raw HTML 必須通過明確安全型別或 unsafe boundary。
+### A-011：`String` 不等於 trusted HTML
 
-### A-012：無 JavaScript 式 `undefined` 語意
+一般字串進 HTML sink 一律 escaping；raw HTML 需要 `TrustedHtml` 或明確 unsafe boundary。
 
-可缺失值使用 `Option<T>` 或其語法糖。Voiles 原生型別系統不以 `undefined` 作一般值。
+### A-012：沒有 JavaScript-style `undefined`
 
-### A-013：Binding 使用 lexical scope 與 nearest-binding resolution
+缺失值使用 `Option<T>` / `T?` 與 `none`。
 
-名稱由目前 lexical scope 向外解析，內層可 shadow 外層。相同 scope 重複宣告與 use-before-declaration 都是 compile error。
+### A-013：Lexical scope + nearest-binding resolution
 
-### A-014：同 importer scope + 同 resolved path 共用同一 module instance
+內層可以 shadow 外層；same-scope redeclaration 與 use-before-declaration 都是 compile error。
+
+### A-014：Scoped `.voil` module identity
 
 ```text
 same importer scope + same resolved path
@@ -120,196 +86,94 @@ different importer scope + same resolved path
 -> different module instance
 ```
 
-不同 alias 不會在相同 importer scope 內複製 module state。
+Alias 不會複製 module state。
 
-### A-015：共享性宣告在變數，而非 module/import
+### A-015：Sharing 宣告在 variable
 
 ```voil
-shared i = 1
+shared count = 0
 ```
 
-`shared` 本身代表 mutable shared binding，不使用 `shared import` 或 `shared state`。
+不使用 `shared import` 或 `shared state`。
 
 ### A-016：`shared` 只允許 module top-level
 
-`shared` 視為 application-global storage，因此只能出現在 `.voil` module 最外層。Component、function、`if`、loop 等 nested scope 中的 `shared` 都是 compile error。
+Component/function/control-flow nested scope 中宣告 `shared` 為 compile error。
 
-### A-017：每次 Component invocation identity 建立獨立 instance scope
+### A-017：每個 component invocation identity 有獨立 instance scope
 
-不同 component invocation identity 各自擁有 component-local `state` 與普通 scoped `.voil` dependencies；只有 `shared` 跨 instance 共用。
+Component-local `state` 與 ordinary scoped dependencies 依 component identity 隔離；`shared` 是例外。
 
 ### A-018：Component 使用顯式 `component` declaration
 
 ```voil
-component UserBtn(
-	text: String,
-	disabled: Bool = false
-):
-	state count = 0
+component UserBtn(text: String):
 	...
 ```
 
-Voiles 不依 render root 推論 component。`fn` 表示 callable logic；`component` 表示 instantiable UI。
+### A-019：Top-level component 自動 export；unused component 可 DCE
 
-### A-019：所有 Component declaration 自動 export，未使用元件可移除
+Component 不需要 `export component`。不可達 component declaration 可被 tree-shake。
 
-所有 top-level `component Name(...):` 自動加入 module component export surface，不需要 `export component`。不可達 component 可由 compiler tree-shake；module top-level side effect 是否能一起移除仍由 effect policy 決定。
-
-### A-020：多 Component import 使用逗號分隔
+### A-020：同 module 多 component import 使用逗號 list
 
 ```voil
 import A, B from "./c.voil"
 ```
 
-每個名稱依 component declaration name 解析。Non-component import semantics 另行討論。
+### A-021：Component children 使用 `slot`
 
-### A-021：Component children 使用 `slot` 模型
+普通 child content 進 default slot；`slot Name:` 提供 named slot；slot content 保留 caller lexical scope。
 
-Ordinary child content 進入 default slot：
+### A-022：v0.1 slot 為 optional single outlet/provision
 
-```voil
-Card(title="Profile"):
-	std.p(user.name)
-```
+一個 default outlet、每個 named outlet/provision 最多一次；unknown slot 或無 default outlet 卻傳普通 children 為 compile error。
 
-Component 內使用 compiler-level `slot` outlet；named slot 使用 `slot Name` / `slot Name:`。
+### A-023：Component parameter 是 immutable named input
 
-Slot content 保留 caller lexical scope；component 只控制插入位置。
-
-### A-022：Slot cardinality 採單一 optional outlet/provision
-
-v0.1 中 default/named slot 預設 optional。Component declaration 最多一個 default outlet、每個 named outlet 最多一個；caller 每個 named slot 最多提供一次。
-
-Unknown named slot、duplicate outlet/provision，以及沒有 default outlet 卻傳 ordinary children 都是 compile error。v0.1 不加入 required slot、重複 projection/cloning 或 scoped-slot parameter。
-
-### A-023：Component parameter 為 immutable named input，prop 更新保留 instance
-
-```voil
-component UserCard(
-	name: String,
-	title: String = name,
-	disabled: Bool = false
-):
-	...
-```
-
-Accepted 規則：
-
-- 無 default 為 required；有 default 為 optional；
-- parameter 在 component 內不可 assignment；
-- component invocation 只允許 named arguments；
-- default expression 每次 invocation 各自 evaluate；
-- parameter/default initialization 由左至右，default 只能引用前面的 parameter；
-- mutable input copy 必須明確建立 `state`；
-- reactive prop 改變時保留既有 component instance/local state，不因 prop 更新而 destroy/recreate。
-
-```voil
-component Input(value: String):
-	state current = value
-```
-
-`current` 只在 instance initialization 取當下 `value`；後續 prop update 不自動覆寫它。
+Component call named-only；default 每 instance evaluate、由左至右，只能引用前面已初始化 parameter。Reactive prop 更新保留既有 component identity/local state。
 
 ### A-024：Component identity 採 structural position；Repeated UI 必須 explicit `key`
 
-非 repeated UI 中，component invocation identity 由穩定結構位置決定。該位置的 reactive values/props 改變時保留同一 component instance。
-
-Conditional branch 是 lifetime boundary：branch 退出時其中 component instance unmount，ordinary local state 與 scoped dependency instance 釋放；重新進入 branch 時建立新 instance。
-
-Repeated UI 若建立 component instance，必須宣告 explicit iteration key：
+非 repeated UI 由穩定 call-site structure 決定 identity。Conditional branch removal 會 unmount。Repeated component UI：
 
 ```voil
 for user in users key user.id:
-	UserCard(
-		user=user
-	)
+	UserCard(user=user)
 ```
 
-Voiles v0.1 不使用隱式 index identity；component-instantiating UI loop 缺少 `key` 為 compile error。
-
-同 key 在 reorder 後保留 component instance/state；key 消失則 unmount；新 key 建立新 instance；key 改變等同 identity replacement。
-
-v0.1 key type 限定 `String` / `Int`。同一 repeated UI evaluation 中 duplicate key 為 runtime error。
-
-普通不建立 repeated component UI 的 algorithmic loop 不要求 `key`。
+v0.1 key 為 `String | Int`；不使用隱式 index identity；duplicate runtime key 是 deterministic runtime error。
 
 ### A-025：Component lifecycle 使用 `mount` + nested `cleanup`
 
-Component-owned resource lifecycle 使用：
+`mount:` 每新 mounted instance 一次；prop/state update 與 unchanged-key reorder 不重跑。`cleanup:` 只能位於 `mount:` 內、可 capture mount locals，unmount 時執行一次。
 
-```voil
-component Clock():
-	state now = get_time()
+### A-026：Scoped module lifecycle 使用 `init` + nested `cleanup`
 
-	mount:
-		const timer = start_timer():
-			now = get_time()
+Ordinary scoped module instance 由 importer scope 擁有。`init:` 每 instance 一次；同 importer + path reuse。Teardown dependency-first/post-order：dependency module cleanup -> importer module cleanup -> owner component cleanup。
 
-		cleanup:
-			timer.stop()
+Ordinary module cleanup 不 destroy/reset `shared` storage。
 
-	std.p(now)
-```
+### A-027：Lexer indentation 採 Python-style logical-line stack model
 
-Accepted 規則：
+Voiles 的 `NEWLINE` / `INDENT` / `DEDENT` 核心規則參照 Python lexical indentation：
 
-- `mount:` 在每個新 mounted component instance 執行一次；
-- reactive prop/state update 不重跑 `mount:`；
-- keyed reorder 且 key 不變時不 cleanup/remount；
-- `cleanup:` 只能出現在 `mount:` block 內；
-- `cleanup:` 可 capture enclosing `mount:` lexical bindings；
-- instance unmount 時 `cleanup:` 執行一次；
-- conditional branch removal、key removal/replacement 都會觸發舊 instance cleanup + unmount；
-- conditional re-entry / new key 建立新 instance後重新執行 mount；
-- v0.1 不提供 reactive `effect`、dependency array 或自動 rerun 語意。
+- physical EOL normalize 為 logical newline；
+- 非 continuation 的 logical line 結束產生 `NEWLINE`；
+- blank / whitespace-only / comment-only logical line 不產生 `NEWLINE`、`INDENT`、`DEDENT`；
+- indentation stack 初始為 `0`；較深 push 並產生一個 `INDENT`；較淺必須回到 stack 中既有 level，依 pop 數產生 `DEDENT`；
+- EOF 對所有剩餘非零 indentation level 產生 `DEDENT`；
+- indentation 不符合既有 stack level 為 lexer/parser diagnostic；
+- tabs 使用 Python-style tab stop 計算（下一個 8-column boundary）；tabs/spaces 混用若造成 interpretation ambiguity 為 indentation error；
+- formatter canonical output 使用 tab indentation。
 
-### A-026：Scoped module lifecycle 使用 `init` + nested `cleanup`，dependency-first teardown
+### A-028：Implicit multiline continuation 採 bracket context
 
-Ordinary scoped `.voil` module instance 由其 importer scope 擁有。Module-owned resource 使用 module-top-level `init:` 與 nested `cleanup:`：
+在 `(...)`、`[...]`、`{...}` expression context 內允許跨 physical line；中間 physical newline 不產生 logical `NEWLINE`，continuation indentation 不參與 block `INDENT/DEDENT`。Blank/comment lines 可存在於 continuation 中。
 
-```voil
-state connected = false
+v0.1 不需要 Python-style backslash explicit line joining；formatter 以 bracketed continuation 為 canonical form。
 
-init:
-	const socket = open_socket("/chat")
-	connected = true
-
-	cleanup:
-		socket.close()
-```
-
-Accepted 規則：
-
-- 新 scoped module instance 建立時 `init:` 執行一次；
-- same importer scope + same resolved path 會 reuse 同一 module instance，因此不重跑 `init:`；
-- owner reactive update 不重建 module instance；
-- module `cleanup:` 只能位於其 `init:` lifecycle scope，且可 capture `init:` lexical bindings；
-- importer/owner scope 結束時，ordinary owned module instance cleanup 一次並釋放 module-local `state`；
-- 不同 alias 若解析到同一 module instance，不重複 init/cleanup；
-- teardown 採 dependency-first / post-order：nested dependency module 先 cleanup，再 importer module，最後 owner component cleanup；
-- dependency initialize 在 owner lifecycle code 使用它之前完成；
-- ordinary module cleanup 不 destroy/reset `shared` storage；application-global `shared` resource lifetime 另行定義；
-- cyclic import initialization/cleanup 仍是 Open，因 cycle 不形成單純 ownership tree。
-
-概念：
-
-```text
-Component
-└─ module A
-   └─ module B
-
-teardown:
-module B cleanup
--> module A cleanup
--> Component cleanup
--> Component unmount/state release
-```
-
-## Draft
-
-### D-001：變數模型縮減為 `const` / `state` / `shared`
-
-目前偏好：
+### A-029：Binding model 正式定案為 `const / state / shared`
 
 ```voil
 const title = "Voiles"
@@ -317,116 +181,343 @@ state count = 0
 shared session = none
 ```
 
-- `const`：immutable runtime binding。
-- `state`：mutable scoped binding；被 UI/runtime dependency 觀察時由 compiler 產生 reactive update。
-- `shared`：mutable application-global binding，只允許 module top-level。
-- v0.1 不提供 `let` / `var` 的方向尚待最終確認。
+- `const`：immutable runtime binding；
+- `state`：唯一 ordinary mutable binding，storage 依 lexical/instance scope；
+- `shared`：module-top-level application-global mutable cell；
+- v0.1 不提供 `let`、`var`、`mut`；
+- function-local algorithmic mutation 一律使用 `state`；compiler 若證明沒有 observer，可 lower 成普通 mutable local，不建立 reactive machinery；
+- `state` / `shared` 只有被 UI/runtime dependency 觀察時才生成 reactive tracking。
 
-### D-002：Named argument / component prop separator 使用 `=`
+### A-030：Closure 支援 lexical capture
 
-Component call 已採 named-only `=`：
+Voiles v0.1 支援 closure / nested function capture：
 
-```voil
-UserBtn(
-	text="just click",
-	onclick=click_btn
-)
-```
+- `const` capture 保持 immutable；
+- `state` capture 指向同一 mutable cell，而非 value copy；
+- 同一 function invocation 建立的多個 closure capture 同一 local `state` 時共享該 cell；
+- escaping closure 可延長 function-local captured environment lifetime，直到最後引用不可達；
+- component/module-owned binding 的 capture 不得讓 closure 超越其 owner lifetime；compiler 必須拒絕可證明會逃逸到更長 lifetime 的 capture（例如寫入 `shared`）；
+- owner unmount/cleanup 後不得存在可呼叫並存取已釋放 owner-local state 的 closure。
 
-普通 function named arguments與 struct construction 是否統一使用 `=` 仍需 grammar 驗證。
+### A-031：Structural HTML block surface 使用 block/container-level tags；接受 attributes
 
-### D-003：`container` 是具體的 block/layout container
-
-`container` 概念上接近 `<div>`，預期預設 lowering 為 concrete block container。只有 compiler 能證明不改變 layout/style/event/accessibility/lifecycle 語意時才可消除 wrapper。
-
-### D-004：Optional shorthand `T?` 等價於 `Option<T>`
+Block/container-level structural HTML 名稱可直接作 block header，attributes 使用 named `=` arguments：
 
 ```voil
-String?
+section(
+	id="profile",
+	class="panel"
+):
+	std.h2("Profile")
 ```
 
-語意為 `Option<String>`，不是 nullable reference。
+v0.1 初始 structural set：`html`, `body`, `header`, `main`, `footer`, `nav`, `section`, `article`, `aside`, `div`, `form`, `fieldset`, `figure`, `blockquote`, `ul`, `ol`, `table`, `details`, `dialog`。
 
-### D-005：Route param 可在頁面內宣告型別
+較低層/leaf/content-oriented HTML element 使用 `std.*`。Structural set 由 `@voiles/html-base` metadata/version 維護，parser 將其視為 privileged structural names，不要求把所有 HTML tag 變成 lexer keyword。
 
-```voil
-param id: Int
-```
-
-Compiler 依 route segment 建立 typed binding；conversion failure 不得注入 unchecked invalid value。
-
-### D-006：Component import alias 使用 item-local `as`
-
-目前推薦：
+### A-032：Import alias 定案為 item-local `as`
 
 ```voil
 import A as X, B as Y from "./c.voil"
 ```
 
-混用亦可：
+可混合 alias/non-alias item。
 
-```voil
-import A, B as SmallB from "./c.voil"
+### A-033：Named argument separator 統一使用 `=`
+
+Component、ordinary function named argument、struct construction、structural HTML attributes 都使用 `=`。
+
+- component call：named-only；
+- struct construction：named-only；
+- ordinary function：可 positional，之後可接 named；一旦出現 named argument，後面不得再出現 positional；
+- duplicate named、unknown named、missing required argument 都是 compile error；
+- default parameter 同樣使用 `=`。
+
+### A-034：Boolean operators 同時接受 word/symbol aliases
+
+以下完全等義且 short-circuit：
+
+```text
+and == &&
+or  == ||
+not == !
 ```
 
-此語法尚未升為 Accepted。
+Formatter canonical form 採 `and / or / not`，但 parser 永久接受兩組。
+
+初始 precedence（高 -> 低）：member/index/call -> unary (`+ - not !`) -> `* / %` -> `+ -` -> comparison -> equality -> `and/&&` -> `or/||` -> assignment。
+
+### A-035：`T?` 正式等價於 `Option<T>`
+
+```voil
+String? == Option<String>
+```
+
+`none` 是 empty option literal。Voiles 不提供 implicit nullable reference 或 implicit truthiness；Option 使用 pattern/match 或標準 Option API 解構。Optional chaining 可後續另行加入，不屬 v0.1 必要語法。
+
+### A-036：Struct 採 immutable value model
+
+```voil
+struct User:
+	id: Int
+	name: String
+	nickname: String? = none
+
+const user = User(
+	id=1,
+	name="Ada"
+)
+```
+
+- fields 預設且 v0.1 一律 immutable；
+- construction named-only；
+- field 可有 default；
+- missing required / duplicate / unknown field 為 compile error；
+- v0.1 不提供 mutable struct field；需要變更時建立新 value；
+- copy/update sugar deferred，可先用 constructor 明確重建。
+
+### A-037：Enum + exhaustive `match`
+
+```voil
+enum LoadState<T>:
+	idle
+	loading
+	ready(T)
+	failed(Error)
+```
+
+- enum case 在 enum 外使用 namespace qualification；
+- 對已知 enum 的 `match` pattern 可省略 enum qualification；
+- compiler 做 exhaustiveness 與 unreachable-pattern diagnostics；
+- `_` 是 wildcard；
+- payload pattern 支援 binding 與 nested enum/struct pattern；
+- v0.1 不需要 pattern guard。
+
+### A-038：Function/callback type 與 DOM event baseline
+
+Function type：
+
+```voil
+fn(Int, String) -> Bool
+```
+
+Component callback parameter 使用 function type，例如：
+
+```voil
+component Button(
+	onclick: fn() -> Void
+):
+	...
+```
+
+Native DOM handler 由 `@voiles/html-base` 提供具體 event types（如 `MouseEvent`, `InputEvent`, `KeyboardEvent`, `SubmitEvent`, `FocusEvent`, `PointerEvent`）。Handler signature 必須 type-check；optional callback 使用 `fn(...)->...?` / `Option<fn(...) -> ...>`。
+
+### A-039：`@voiles/html-base` 為 metadata-driven Web surface；`std` 是 ordinary alias
+
+`std` 只是官方 docs/formatter canonical alias，不是 reserved language namespace。
+
+`@voiles/html-base` baseline：
+
+- structural block metadata + `std.*` leaf/content elements；
+- typed standard attributes/events；
+- `class` 直接使用；HTML `for` 使用 `html_for`；
+- `aria_*` / `data_*` 轉成 kebab-case attributes；
+- boolean attribute `true` emit / `false` omit；
+- normal text escaping；
+- void element 拒絕 child block；
+- browser-standard additions由 package metadata version 更新，不要求新增 language keyword。
+
+### A-040：Scoped slot 與 first-class UI value 不進 v0.1
+
+Slot parameter/scoped-slot Deferred。v0.1 不定義 `Ui`/`Node`/`Slot` first-class value type；UI structure 只存在於 compiler UI lowering context。
+
+### A-041：Runtime `.voil` import cycle 在 v0.1 為 compile error
+
+Ordinary runtime module graph 必須是 DAG，維持 deterministic init/cleanup ownership。Type-only dependency cycle 可以存在，但必須是無 runtime initialization edge 的 type import/reference。
+
+### A-042：Observable module-top-level work 必須放在 `init:`
+
+一般 top-level declaration initializer 必須可分析為無 observable side effect。Timer/socket/subscription/logging/DOM mutation 等 observable work 必須位於 module `init:`。
+
+這使 whole-module tree-shaking 與 lifecycle ownership deterministic。
+
+`shared` initializer 亦不得直接建立需要 cleanup 的 external resource。Application-lifetime resource 應由 application-root owned scoped module 的 `init:/cleanup:` 管理，`shared` 只存放可獨立存活的 shared data/cell。
+
+### A-043：Non-component public API 使用 explicit `export`
+
+Component 保持 automatic export；其他 module symbol 必須 explicit export：
+
+```voil
+export fn format_user(...):
+	...
+
+export const version = "1"
+export state count = 0
+export shared session = none
+export struct User:
+	...
+export enum Status:
+	...
+```
+
+Named symbol import 沿用同一 list + `as`：
+
+```voil
+import format_user, User as AccountUser from "./user.voil"
+```
+
+Namespace import：
+
+```voil
+import * as store from "./store.voil"
+```
+
+v0.1 不提供 default export。Mutable `state/shared` 只有 explicit export 時才成為 public mutation surface。
+
+### A-044：JavaScript/npm interop 是 explicit unsafe/foreign boundary
+
+Voiles package / `.voil` import 使用 ordinary `import`；原生 JS/npm module 使用 explicit foreign import marker：
+
+```voil
+extern import * as lib from "some-js-package"
+```
+
+Foreign value 預設是 opaque `JsValue`，除非標準 adapter/generated binding 提供 Voiles signature。`.d.ts` 可作 binding generation input，但不能繞過 `undefined` normalization、exception boundary 與 mutable object interop rules。v0.1 不提供 unconstrained `any`。
+
+JS `undefined` 在 typed boundary 轉成 `none`/`Option`; JS throw / Promise rejection 必須轉成 explicit error result。
+
+### A-045：Async/error 使用 `async fn` + `await` + `Result<T,E>` + `?`
+
+```voil
+async fn load_user(id: Int) -> Result<User, LoadError>:
+	const response = await fetch_user(id)?
+	return parse_user(response)?
+```
+
+- `?` 只在 compatible `Result`/Option-returning context 做 early propagation；
+- v0.1 沒有一般 `throw` 作為原生 control flow；
+- foreign JS throw/rejection 在 interop adapter 轉為 `Err`；
+- async event callback 必須符合 declared async callback signature，不隱式丟棄 failure。
+
+### A-046：List indexing 有 checked/optional 兩種 API
+
+```voil
+items[i]       # T, bounds failure -> deterministic runtime bounds error
+items.get(i)   # Option<T>
+```
+
+Negative index 不具有 Python 式反向索引語意；負值視為 out-of-bounds。
+
+### A-047：`container` 是 concrete generic block container
+
+`container:` 預設 lowering 為 `<div>` 等 concrete generic block node，接受與 `div` 相同的 attributes/events。若 compiler 證明 layout/style/event/DOM/accessibility/lifecycle 完全等價才可 wrapper-eliminate。
+
+Semantic tag 應使用對應 structural block，而不是 `container` semantic override。
+
+### A-048：Route baseline / layout lifetime
+
+File routing：
+
+```text
+index.voil          -> segment root
+about.voil          -> /about
+[id].voil           -> one dynamic segment
+[...slug].voil      -> one-or-more catch-all
+[[...slug]].voil    -> optional catch-all
+```
+
+Same path ambiguity/conflict 為 compile error。Reserved files：`_layout.voil`, `_404.voil`, `_error.voil`。
+
+`param id: Int` 對 path segment 做 compile-known runtime conversion；conversion failure 視為該 typed route 不匹配並進入 nearest `_404` resolution，不注入 invalid value。Catch-all 預設 `List<String>`。
+
+Nested `_layout.voil` instance 在同 subtree navigation 中保留 state，離開 subtree 時依一般 component/module lifecycle cleanup。`_error.voil` 採 nearest ancestor boundary；`_404.voil` 採 nearest segment fallback，最後回 root fallback。
+
+Typed route-link API 必須能從 route schema 檢查 required params。
+
+### A-049：HTML/URL safety 使用 nominal safe types
+
+- `TrustedHtml` 不可由 plain `String` implicit conversion；
+- runtime user content 必須經 sanitizer API 取得 `TrustedHtml`；unsafe raw conversion 若存在必須顯式標記；
+- URL sinks 對 compile-time literal 做 scheme validation；runtime dynamic URL 使用 nominal `Url`/更窄 safe URL wrapper；
+- safe URL parser 拒絕不允許的 dangerous scheme（例如 `javascript:`）；
+- ordinary text sink 永遠 escaping。
+
+### A-050：Compiler pipeline 採 lossless CST -> AST -> HIR -> typed HIR -> lowering IR
+
+```text
+source
+-> tokens
+-> lossless CST
+-> syntax AST
+-> resolved HIR
+-> typed HIR
+-> reactivity / identity / lifecycle lowering IR
+-> HTML/CSS/JS codegen
+```
+
+CST 保留 comments/trivia/source spans；symbol resolution、module identity、component/slot semantics、type info 在 HIR；reactive dependency、keyed identity、mount/init ownership 在 lowering IR。
+
+Diagnostics 至少包含 stable error code、primary span、optional secondary spans、expected/found/context，並支援 indentation/error recovery 以繼續分析後續 source。
+
+### A-051：Dev HMR 以 declaration identity 相容性決定 state preservation
+
+Vite integration 使用 framework/tooling HMR boundary，不把 Vite HMR API 暴露成 Voiles source 語法。
+
+- component body-only compatible edit -> preserve instance/local state；
+- component parameter signature、state declaration shape/type/order、identity/lifecycle shape 不相容 -> remount affected boundary；
+- module `init`/dependency graph 改變需要先 cleanup 舊 owned module subtree，再 initialize replacement；
+- `shared` cell 僅在 declaration identity + type compatible 時 preserve，否則 reset/reinitialize；
+- compile error 時 dev server 保留 last successful module graph並顯示 diagnostic，修正後再套 update；
+- HMR 僅為 dev semantics，不影響 production identity/lifecycle specification。
 
 ## Open
 
-### O-001：CSS / Voiles layout integration
+### O-001：CSS / Voiles layout integration details
 
-需要定義 CSS property/value、typed layout API、component-local scope、pseudo selector、queries、custom property、animation 與 raw/native CSS escape hatch。
+保持 native CSS compatibility 為優先。需另行設計 style block/imported CSS、scoping/cascade、custom property、pseudo selector、media/container queries、animation/keyframes、typed subset 與 raw CSS escape hatch。此項不在本批次強行鎖 DSL。
 
-### O-002：一般非 reactive mutable local
+### O-002：Exact foreign binding generator / npm package metadata
 
-需決定 function-local algorithmic mutation 是以 unobserved `state` lowering、額外 `mut`，或其他受限 construct 表達。
+`extern import` safety baseline 已定案；`.d.ts`/schema 到 Voiles binding 的細節、package metadata 與 tooling 仍需 prototype。
 
-### O-003：Top-level UI block 的完整 grammar
+### O-003：Application root/bootstrap exact surface
 
-需確認頁面 sibling structural roots 與 component block 可接受的 UI roots。
+Application-lifetime resource 由 root-owned module 管理的原則已定；root bootstrap special file/API 的最終 surface 可與 routing/runtime implementation 一起決定。
 
-### O-004：Slot parameters / typing
+### O-004：HMR compatibility hash implementation
 
-Default/named slot syntax 與 v0.1 cardinality 已定案；slot parameter/scoped-slot 與 slot content type model 待 concrete use case 再設計。
-
-### O-005：Event type model
-
-需定義 native DOM event surface、handler signature 與 component callback typing。
-
-### O-006：Standard HTML module surface
-
-需定義 `@voiles/html-base` 的 elements、attributes、events、escaping、semantic block 邊界與 Web platform versioning。
-
-### O-007：Non-component import symbol forms
-
-Component 單/多 symbol import 已有基本語法；仍需定義 component alias、non-component default/named/namespace import 與 JS/npm interop grammar。
-
-### O-008：Async/error syntax
-
-需決定 `async fn`、`Result<T, E>` propagation 與 throwing JS API interop。
-
-### O-009：Scoped module cycles / global resource lifetime
-
-Ordinary scoped module `init`/`cleanup` ownership lifecycle 已定案。仍需定義 cyclic import initialization/cleanup、`shared` initialization order，以及 application-global resources stored in `shared` bindings 的 teardown policy。
-
-### O-010：Module top-level side effects / tree-shaking boundary
-
-需定義 optimizer 何時必須保留 module initialization，以及何時能移除整個 module。
+HMR preservation semantics 已定；精確 declaration fingerprint、Vite plugin hook 與 invalidation propagation 留到 compiler/Vite implementation。
 
 ## Deferred
 
-### X-001：Macro system
+### X-001：Scoped slot / slot parameter
 
-v0.1 不設計 general-purpose macro。
+v0.1 不提供。
 
-### X-002：Operator overloading
+### X-002：First-class UI value type
 
-v0.1 不開放使用者自訂 operator overloading。
+v0.1 不提供 `Ui`/`Node`/`Slot` value model。
 
-### X-003：完整 borrow checker
+### X-003：CSS custom DSL
 
-Web target 不引入 Rust 式 lifetime/borrow syntax。
+不在 v0.1 baseline 預先發明會限制 native CSS forward compatibility 的 DSL。
 
-### X-004：SSR-only 語法
+### X-004：General-purpose macro
 
-SSR/SSG 尚未進入 MVP，不先污染 core syntax。
+v0.1 不提供。
+
+### X-005：Operator overloading
+
+v0.1 不提供 user-defined operator overloading。
+
+### X-006：Rust-style borrow/lifetime syntax
+
+不引入完整 borrow checker surface。
+
+### X-007：SSR-only syntax
+
+SSR/SSG 不先污染 v0.1 client-first core syntax。
+
+### X-008：Ecosystem/package policy finalization
+
+Project-root alias、Voiles package publishing、registry/package metadata、browser compatibility target 與最終 Vite plugin contract 等到 compiler prototype 後再鎖定。
