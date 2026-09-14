@@ -51,6 +51,20 @@ impl SyntaxNode {
 		}
 	}
 
+	pub fn child_nodes(&self) -> impl Iterator<Item = &SyntaxNode> {
+		self.children.iter().filter_map(|child| match child {
+			SyntaxElement::Node(node) => Some(node.as_ref()),
+			SyntaxElement::Token(_) => None,
+		})
+	}
+
+	pub fn direct_tokens(&self) -> impl Iterator<Item = &Token> {
+		self.children.iter().filter_map(|child| match child {
+			SyntaxElement::Node(_) => None,
+			SyntaxElement::Token(token) => Some(token),
+		})
+	}
+
 	#[must_use]
 	pub fn source_text(&self, source: &str) -> String {
 		let mut text = String::with_capacity(self.span.end.saturating_sub(self.span.start));
