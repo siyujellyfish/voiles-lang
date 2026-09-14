@@ -171,9 +171,7 @@ impl<'tokens> Parser<'tokens> {
 		) {
 			self.bump_into(&mut children);
 		}
-		if self.at(TokenKind::Newline) {
-			self.bump_into(&mut children);
-		} else if children.is_empty() && !self.at(TokenKind::Eof) {
+		if self.at(TokenKind::Newline) || (children.is_empty() && !self.at(TokenKind::Eof)) {
 			self.bump_into(&mut children);
 		}
 		SyntaxNode::new(SyntaxKind::Error, children)
