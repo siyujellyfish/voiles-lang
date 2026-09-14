@@ -1,23 +1,16 @@
 # Voiles Language Specification
 
-Status: `Draft`
+Status: `v0.1 baseline accepted; implementation not started`.
 
-Target: initial syntax planning before parser/compiler implementation.
-
-Voiles source files use the `.voil` extension. The language targets front-end applications that compile to native HTML, CSS and JavaScript while keeping routing, reactivity, component identity and safety semantics available to the compiler.
-
-This document separates accepted syntax from areas that still require prototype validation.
+Voiles source uses `.voil`. The language targets front-end applications compiled to native HTML/CSS/JavaScript while preserving routing, type safety, fine-grained reactivity, component identity and deterministic resource lifecycle in the compiler/runtime model.
 
 ---
 
-## 1. Core syntax direction
-
-Accepted baseline:
+## 1. Core source shape
 
 ```voil
-# comment
 import std from "@voiles/html-base"
-import UserBtn from "../ui/components/UserBtn.voil"
+import UserBtn from "../ui/UserBtn.voil"
 
 state count = 0
 
@@ -25,336 +18,88 @@ fn click_btn():
 	count += 1
 
 header:
-	...
+	std.h1("Voiles")
 
 main:
-	container:
-		std.h1("Hello world")
-		UserBtn(
-			text="just click",
-			onclick=click_btn
-		)
-
+	UserBtn(
+		text="Click",
+		onclick=click_btn
+	)
 	std.p(count)
 ```
 
-Explicit component declaration:
+Core rules：
+
+1. `:` opens blocks.
+2. Significant indentation defines hierarchy.
+3. `#` is a line comment.
+4. Module specifiers are quoted strings.
+5. Functions use `fn`.
+6. Components use `component`.
+7. No JSX/XML closing tags.
+8. Mutation uses `state` or top-level `shared`; no `let/var/mut` in v0.1.
+9. Native HTML uses structural blocks or `std.*`.
+10. User components use PascalCase function-like invocation.
+11. Components/modules/resources have explicit compiler-known lifetimes.
+
+---
+
+## 2. Lexical lines and indentation
+
+Voiles follows Python-style logical-line / indentation-stack behavior for the block lexer.
+
+### 2.1 Logical line
+
+A non-continuation logical line ends with `NEWLINE`.
+
+Blank, whitespace-only and comment-only logical lines are ignored for block structure and do not emit `NEWLINE`, `INDENT` or `DEDENT`.
+
+Physical EOL forms are normalized before tokenization.
+
+### 2.2 INDENT / DEDENT stack
+
+The lexer begins with indentation stack `[0]`.
+
+For each structural logical line：
+
+- equal indentation -> no indentation token；
+- greater indentation -> push new level + emit one `INDENT`；
+- lower indentation -> target must be an existing stack level; pop and emit one `DEDENT` per removed level；
+- EOF -> emit `DEDENT` until only zero remains。
+
+Tabs use Python-style tab stops to the next multiple-of-eight column. Ambiguous tabs/spaces mixing is an indentation error. Formatter output uses tabs for block indentation.
+
+### 2.3 Multiline continuation
+
+Inside `(...)`, `[...]`, `{...}` expressions may span physical lines without structural newline/indentation tokens.
 
 ```voil
-component UserBtn(
-	text: String,
-	disabled: Bool = false
-):
-	state count = 0
-
-	fn click():
-		count += 1
-
-	container:
-		std.button(
-			disabled=disabled,
-			onclick=click
-		)
+UserCard(
+	name=user.name,
+	disabled=(
+		user.loading
+		or user.deleted
+	)
+)
 ```
 
-Core properties:
+Continuation indentation is presentation only. Blank/comment lines are allowed inside continuation contexts.
 
-1. `:` opens a block.
-2. indentation defines hierarchy.
-3. `#` is comment syntax only.
-4. import module paths are quoted strings.
-5. function declarations use `fn`.
-6. reusable UI declarations use `component`.
-7. semantic page structure may appear directly at module level.
-8. native HTML leaf APIs use the standard HTML namespace.
-9. user components use function-like PascalCase invocation.
-10. no HTML/XML closing tags are used.
-11. ordinary mutable state is scoped; application-global mutation is explicit with `shared`.
-12. every component invocation identity owns an independent component instance scope.
-13. every top-level component declaration is automatically exportable.
-14. unreachable component declarations are compiler dead-code-elimination candidates.
-15. multiple components from one module use comma-separated imports.
-16. component children use default/named `slot` projection and retain caller lexical scope.
-17. v0.1 slots are optional and single-outlet/single-provision by name.
-18. component parameters are immutable named inputs; defaults are evaluated per new instance.
-19. reactive parameter updates preserve the existing component instance/local state.
-20. non-repeated component identity comes from stable structural invocation position.
-21. repeated component UI requires explicit `key`; implicit index identity is not used.
-22. component-owned resources use one-shot `mount:` with nested `cleanup:`.
-23. ordinary scoped `.voil` modules use one-shot `init:` with nested `cleanup:` and dependency-first teardown.
+v0.1 does not require backslash explicit line joining.
 
 ---
 
-## 2. Source file model
-
-A `.voil` file is a module.
-
-A module may contain:
-
-- imports;
-- type declarations;
-- `const`, `state` and top-level `shared` bindings;
-- functions;
-- component declarations;
-- route parameter declarations;
-- module lifecycle `init:` blocks;
-- semantic HTML structural blocks;
-- container blocks;
-- native HTML API calls;
-- user component invocations.
-
-Voiles does not require file-role markers such as `page`, `module` or `component` on the first line. A component is identified explicitly by its `component` declaration.
-
-Files under `app/` may become routes automatically.
-
-```text
-app/
-	index.voil
-	about.voil
-	users/
-		[id].voil
-ui/
-	components/
-		UserBtn.voil
-```
-
-Expected routes:
-
-```text
-app/index.voil       -> /
-app/about.voil       -> /about
-app/users/[id].voil  -> /users/:id
-```
-
-Route paths are not repeated inside source files.
-
----
-
-## 3. Blocks
-
-Status: `Accepted`
-
-Voiles uses significant indentation. Every block opener ends with `:`.
-
-```voil
-fn greet(name: String) -> String:
-	return "Hello {name}"
-
-component Greeting(name: String):
-	container:
-		std.p(name)
-
-main:
-	container:
-		std.h1("Hello")
-```
-
-Ordinary blocks do not use `{}`.
-
-The lexer/parser must eventually model indentation transitions deterministically and support multiline expression continuation without confusing expression indentation with block indentation.
-
----
-
-## 4. Comments
-
-Status: `Accepted`
-
-Line comments begin with `#`:
+## 3. Comments
 
 ```voil
 # comment
 ```
 
-`#` has no HTML id shorthand or other surface-language meaning.
-
-Multiline comment syntax is not required for the first parser milestone.
+`#` has no HTML id shorthand meaning. Multiline comment syntax is not required for v0.1.
 
 ---
 
-## 5. Imports and scoped module identity
-
-Module specifiers are quoted strings:
-
-```voil
-import std from "@voiles/html-base"
-import UserBtn from "../ui/components/UserBtn.voil"
-```
-
-The same module-specifier string grammar is intended to cover:
-
-```text
-@voiles package
-npm package
-relative .voil module
-project module path
-```
-
-`std` is the canonical documentation/formatter alias for `@voiles/html-base`. Whether it becomes a language-reserved namespace remains open.
-
-Ordinary `.voil` module identity:
-
-```text
-same importer scope + same resolved module path
-	-> same module instance
-
-different importer scope + same resolved module path
-	-> different module instance
-```
-
-Different aliases inside the same importer scope do not clone state:
-
-```voil
-import a from "./store.voil"
-import b from "./store.voil"
-```
-
-`a` and `b` resolve to the same module instance in that importer scope.
-
-### 5.1 Component imports
-
-Every top-level `component Name(...):` declaration is automatically part of the module component export surface. There is no required `export component` syntax.
-
-```voil
-# buttons.voil
-component UserBtn(text: String):
-	...
-
-component IconBtn(icon: String):
-	...
-```
-
-Single component import:
-
-```voil
-import UserBtn from "./buttons.voil"
-```
-
-Multiple component import:
-
-```voil
-import UserBtn, IconBtn from "./buttons.voil"
-```
-
-Each item resolves the automatically exported component declaration with the same name. Component declaration names must be unique within one module.
-
-Component alias syntax is still Draft. Current recommendation:
-
-```voil
-import UserBtn as PrimaryBtn, IconBtn as SmallIconBtn from "./buttons.voil"
-```
-
-Mixed aliased/non-aliased items would be valid if this form is accepted:
-
-```voil
-import UserBtn, IconBtn as SmallIconBtn from "./buttons.voil"
-```
-
-Non-component default/named/namespace import and JS/npm interop import semantics remain open.
-
-### 5.2 Scoped module lifecycle
-
-Status: `Accepted` for v0.1 baseline.
-
-An ordinary scoped `.voil` module instance is owned by its importer scope. Module-owned resources use module-top-level `init:` with nested `cleanup:`:
-
-```voil
-# chat.voil
-state connected = false
-
-init:
-	const socket = open_socket("/chat")
-	connected = true
-
-	cleanup:
-		socket.close()
-```
-
-Lifecycle rules:
-
-- `init:` runs once when a new scoped module instance is created;
-- same importer scope + same resolved path reuses the same module instance and does not rerun `init:`;
-- reactive updates in the importer do not recreate the module instance;
-- module `cleanup:` is valid only inside its enclosing `init:` lifecycle scope;
-- module `cleanup:` may capture lexical bindings declared in that `init:` block;
-- destroying the importer/owner scope destroys its owned ordinary scoped-module instances;
-- each owned module cleanup runs once before that module-local state is released;
-- aliases resolving to one module instance do not duplicate init/cleanup execution.
-
-Ordinary scoped-module teardown is dependency-first/post-order.
-
-```text
-Component
-└─ module A
-   └─ module B
-```
-
-Teardown order:
-
-```text
-module B cleanup
--> module A cleanup
--> Component cleanup
--> Component unmount/state release
-```
-
-Dependencies initialize before owner lifecycle code can rely on them. Cyclic imports remain a separate unresolved initialization/cleanup case because cycles do not form a simple ownership tree.
-
-Ordinary module cleanup does not destroy or reset `shared` storage. Application-global resources intentionally stored in `shared` bindings require a separate application-global lifetime policy.
-
----
-
-## 6. Identifiers and naming
-
-Naming style is not currently enforced by the parser.
-
-Examples may use ordinary identifiers such as:
-
-```voil
-click_btn
-```
-
-PascalCase is the preferred component naming convention because it visually distinguishes user components from native HTML APIs and ordinary functions.
-
----
-
-## 7. Primitive types
-
-Initial type candidates:
-
-```text
-Bool
-Int
-Float
-String
-List<T>
-Map<K, V>
-Option<T>
-Result<T, E>
-```
-
-Optional shorthand remains Draft:
-
-```voil
-String?
-```
-
-would mean:
-
-```voil
-Option<String>
-```
-
-Voiles does not expose JavaScript-style `undefined` as a normal language value.
-
----
-
-## 8. Bindings and scope
-
-Voiles uses lexical scope with nearest-binding resolution. Name lookup begins in the innermost scope and proceeds outward. Inner declarations may shadow outer declarations.
-
-Redeclaration in the same lexical scope is a compile error. Declarations are not visible before their declaration point.
-
-Current reduced binding model:
+## 4. Bindings
 
 ```voil
 const title = "Voiles"
@@ -362,133 +107,187 @@ state count = 0
 shared session = none
 ```
 
-### 8.1 `const`
+### 4.1 `const`
 
-`const` is an immutable runtime binding.
+Immutable runtime lexical binding. Runtime initializer allowed; not necessarily compile-time constant.
 
-```voil
-const title: String = "Voiles"
-```
+### 4.2 `state`
 
-Semantics:
+Ordinary mutable binding：
 
-- immutable;
-- may be initialized from a runtime expression;
-- does not imply compile-time evaluation;
-- follows lexical scope;
-- cannot be reassigned.
+- lexical/instance scoped；
+- type remains fixed after initialization；
+- compiler generates reactivity only when observed；
+- unobserved function-local state may lower to a plain mutable local。
 
-### 8.2 `state`
-
-`state` is mutable scoped storage.
+All v0.1 ordinary mutation uses `state`：
 
 ```voil
-state count: Int = 0
-
-fn click_btn():
-	count += 1
+fn sum(items: List<Int>) -> Int:
+	state total = 0
+	for item in items:
+		total += item
+	return total
 ```
 
-Semantics:
+### 4.3 `shared`
 
-- mutable;
-- follows lexical scope;
-- storage belongs to the owning function/module/component instance;
-- retains its declared or inferred type after initialization;
-- compiler-generated reactivity is used when UI/runtime dependencies observe it.
+Application-global mutable cell per declaration identity：
 
-Function-local state is recreated per independent function invocation:
+- module-top-level only；
+- shared across scoped module/component instances；
+- reactive only when observed；
+- ordinary module cleanup does not reset it。
 
-```voil
-fn count_once() -> Int:
-	state i = 5
-	i += 1
-	return i
-```
-
-Each call returns `6`.
-
-### 8.3 `shared`
-
-`shared` is explicit application-global mutable storage.
-
-```voil
-shared session = none
-```
-
-Accepted restrictions:
-
-- mutable by definition;
-- does not require an additional `state` keyword;
-- one shared storage cell per declaration identity across module/component instances;
-- only legal at module top level;
-- compiler-generated reactivity is used when observed;
-- lifetime is independent from ordinary scoped-module cleanup.
-
-Invalid:
-
-```voil
-component Counter():
-	shared value = 0
-```
-
-```voil
-fn test():
-	shared value = 0
-```
-
-`shared` is the explicit escape from normal scoped-state isolation.
-
-### 8.4 Non-reactive local mutation
-
-Still open.
-
-Current direction may allow function-local `state` to lower to ordinary mutable local storage when no observer exists. A separate `mut` keyword is not accepted yet.
+A `shared` initializer may not directly create a cleanup-requiring external resource. Such resources need an owned module `init:/cleanup:` lifetime.
 
 ---
 
-## 9. Functions
+## 5. Scope and closure
 
-Status: `Accepted` for declaration marker and block form.
+Names resolve from innermost lexical scope outward. Inner declaration may shadow outer declaration. Same-scope redeclaration and use-before-declaration are compile errors.
+
+### 5.1 Closure capture
 
 ```voil
-fn add(a: Int, b: Int) -> Int:
+fn make_counter():
+	state i = 0
+
+	fn next() -> Int:
+		i += 1
+		return i
+
+	return next
+```
+
+- `const` capture remains immutable；
+- captured `state` uses the same mutable cell；
+- closures from one invocation share captured cells；
+- escaping closure heap-promotes function-local captured environment；
+- component/module-owner bindings cannot escape into a longer-lived storage than the owner；compiler rejects such escape。
+
+---
+
+## 6. Functions and arguments
+
+```voil
+fn add(a: Int, b: Int = 0) -> Int:
 	return a + b
 ```
 
-`fn` is required so declaration grammar does not collide with invocation grammar.
-
-Async/error handling remains open:
+Ordinary functions support positional arguments followed by named arguments：
 
 ```voil
-async fn load_user(id: Int) -> Result<User, LoadError>:
-	...
+add(1, b=2)
+```
+
+After the first named argument, positional arguments are not allowed.
+
+Duplicate named, unknown named and missing required arguments are compile errors.
+
+Named/default separator is consistently `=` across functions, components, struct construction and structural HTML attributes.
+
+### 6.1 Function types
+
+```voil
+fn(Int, String) -> Bool
+```
+
+Function/callback values are type-checked like other values.
+
+---
+
+## 7. Boolean operators and precedence
+
+Equivalent aliases：
+
+```text
+and == &&
+or  == ||
+not == !
+```
+
+Both forms short-circuit. Formatter canonical output is `and / or / not`.
+
+Initial precedence, high -> low：
+
+```text
+member / index / call
+unary (+ - not !)
+* / %
++ -
+comparison (< <= > >=)
+equality (== !=)
+and / &&
+or / ||
+assignment
 ```
 
 ---
 
-## 10. Structs and enums
+## 8. Primitive/core types
 
-Status: `Draft`
+Initial core types：
+
+```text
+Void
+Bool
+Int
+Float
+String
+List<T>
+Map<K,V>
+Option<T>
+Result<T,E>
+```
+
+No JavaScript-style `undefined` in native Voiles.
+
+### 8.1 Optional shorthand
+
+```voil
+String? == Option<String>
+```
+
+`none` is the empty option literal. Option is not implicitly truthy/falsy.
+
+### 8.2 List indexing
+
+```voil
+items[i]      # T, checked; out-of-bounds runtime error
+items.get(i)  # Option<T>
+```
+
+Negative index is out-of-bounds; it does not mean reverse indexing.
+
+---
+
+## 9. Struct
 
 ```voil
 struct User:
 	id: Int
 	name: String
-	email: String?
-```
+	nickname: String? = none
 
-Candidate construction syntax:
-
-```voil
 const user = User(
 	id=1,
-	name="Ada",
-	email=none
+	name="Ada"
 )
 ```
 
-Enum candidate:
+v0.1：
+
+- fields immutable；
+- constructor named-only；
+- fields may have defaults；
+- missing required / duplicate / unknown field -> compile error；
+- mutable struct fields are not part of v0.1；
+- copy/update sugar deferred。
+
+---
+
+## 10. Enum and match
 
 ```voil
 enum LoadState<T>:
@@ -498,13 +297,25 @@ enum LoadState<T>:
 	failed(Error)
 ```
 
-Pattern matching should be exhaustiveness-checked where possible.
+```voil
+match state:
+	idle:
+		std.p("Idle")
+	loading:
+		Spinner()
+	ready(data):
+		Results(data=data)
+	failed(error):
+		ErrorView(error=error)
+```
+
+Compiler performs exhaustiveness and unreachable-pattern diagnostics. `_` is wildcard. Payload/nested struct/enum patterns are allowed. Pattern guards are deferred.
+
+Enum case references outside an enum-known match use namespace qualification.
 
 ---
 
 ## 11. Control flow
-
-Status: `Draft` syntax using accepted block rules.
 
 ```voil
 if user.isAdmin:
@@ -518,559 +329,97 @@ for item in items:
 	process(item)
 ```
 
-Repeated UI that creates component instances uses explicit key identity:
+Control flow may appear directly inside UI hierarchy.
+
+Repeated UI that creates components requires key identity：
 
 ```voil
 for user in users key user.id:
-	UserCard(
-		user=user
-	)
+	UserCard(user=user)
 ```
-
-Control flow should be usable directly inside page/component UI hierarchy rather than requiring template-only directives.
 
 ---
 
-## 12. Page structure
+## 12. Module import/export
 
-Status: `Accepted` baseline.
+Module specifiers are quoted strings.
 
-A page does not require a `view:` wrapper or first-line `page` declaration.
+### 12.1 Component exports
 
-```voil
-header:
-	std.h1("Account")
-
-main:
-	std.p("Content")
-
-footer:
-	std.p("Footer")
-```
-
-These structural blocks correspond to semantic HTML elements.
-
-Initial candidates:
-
-```text
-header
-main
-footer
-nav
-section
-article
-aside
-```
-
-The exact syntax-level structural-name set remains open so the language core does not duplicate the entire HTML specification.
-
-Sibling structural roots such as `header:` + `main:` + `footer:` are expected, but exact root validation remains open.
-
----
-
-## 13. Standard HTML module
-
-Status: `Accepted` concept, surface API Open.
-
-Native HTML leaf elements are visually distinct from user components:
+Every top-level component automatically exports by declaration name.
 
 ```voil
-import std from "@voiles/html-base"
-
-std.h1("Hello world")
-std.p(count)
-std.img(
-	src=user.avatar,
-	alt=user.name
-)
-```
-
-The compiler/standard module can give these functions privileged HTML semantics for:
-
-- correct element lowering;
-- text escaping;
-- typed attributes;
-- boolean attributes;
-- event types;
-- accessibility diagnostics where appropriate.
-
-The boundary between syntax-level structural HTML and `std.*` APIs should remain intentionally small.
-
----
-
-## 14. User components
-
-Status: `Accepted` declaration, export, parameter, instance, identity, lifecycle and slot baseline.
-
-### 14.1 Declaration
-
-```voil
-component UserBtn(
-	text: String,
-	disabled: Bool = false
-):
-	state count = 0
-
-	fn click():
-		count += 1
-
-	container:
-		std.button(
-			disabled=disabled,
-			onclick=click
-		)
-
-		std.p(text)
-		std.p(count)
-```
-
-Component header parameters define the public input surface. A separate `input` / `prop` keyword is not required.
-
-```text
-fn
-	-> callable logic
-
-component
-	-> instantiable UI
-```
-
-### 14.2 Automatic component export
-
-Every top-level component declaration is automatically exportable from its `.voil` module.
-
-```voil
-component UserBtn(...):
+component A():
 	...
 
-component IconBtn(...):
+component B():
 	...
 ```
 
-No `export component` syntax is required.
+```voil
+import A, B as SmallB from "./components.voil"
+```
 
-A module may contain multiple component declarations, each with a unique declaration name.
+Alias syntax is item-local `as`.
 
-The compiler builds a component dependency graph from imports and invocations. Unreachable component declarations are eligible for dead-code elimination.
+### 12.2 Non-component exports
 
-Component-local initialization/lifecycle occurs only when the component is instantiated. Unused component declarations must not create component state, run `mount`, or emit render output simply because the containing module exists.
-
-Unrelated module-top-level side effects must still be preserved unless effect analysis proves the whole module removable.
-
-### 14.3 Parameters and invocation
-
-Status: `Accepted`.
-
-Component parameters are immutable input bindings.
+Other public symbols require explicit `export`：
 
 ```voil
-component UserCard(
-	name: String,
-	title: String = name,
-	disabled: Bool = false
-):
+export fn format_user(...):
+	...
+
+export const version = "1"
+export state count = 0
+export shared session = none
+
+export struct User:
+	...
+
+export enum Status:
 	...
 ```
 
-Rules:
-
-- no default -> required;
-- default present -> optional;
-- component call arguments are named-only;
-- parameter bindings cannot be reassigned inside the component;
-- defaults are evaluated per new component instance;
-- initialization is left-to-right;
-- defaults may reference only earlier initialized parameters.
-
-Valid:
+Named import：
 
 ```voil
-UserCard(
-	name="Alice"
-)
+import format_user, User as AccountUser from "./user.voil"
 ```
 
-Invalid positional call:
+Namespace import：
 
 ```voil
-UserCard("Alice") # compile error
+import * as store from "./store.voil"
 ```
 
-Mutable component-owned copies require explicit state:
+v0.1 has no default export.
 
-```voil
-component Input(value: String):
-	state current = value
-```
-
-`current` is initialized from the current input once for that instance; future updates to parameter `value` do not implicitly reset it.
-
-Per-instance default example:
-
-```voil
-component Panel(id: String = create_id()):
-	...
-
-Panel()
-Panel()
-```
-
-`create_id()` is evaluated independently for each new instance.
-
-### 14.4 Instance state and reactive parameter updates
-
-Every component invocation identity creates an independent component instance scope when first active.
-
-```voil
-UserBtn(text="A")
-UserBtn(text="B")
-```
-
-If the component owns `state count = 0`, the two instances have independent count storage.
-
-A component instance is also an importer scope. Ordinary stateful `.voil` modules imported by the component are independently instantiated per component instance unless the dependency uses `shared`.
-
-Within one component instance, the same resolved dependency path still maps to one dependency module instance.
-
-Reactive parameter updates preserve the existing component instance:
-
-```voil
-state name = "Alice"
-
-UserCard(
-	name=name
-)
-
-name = "Bob"
-```
-
-The same `UserCard` receives `"Bob"` while preserving local `state` and ordinary dependency instances.
-
-Component-local state initializers run only when a new component identity is created.
-
-### 14.5 Component identity
-
-Status: `Accepted`.
-
-Outside repeated UI, stable structural invocation position defines component identity.
-
-Changing reactive values/parameters at the same position preserves the instance.
-
-Conditional branch removal is an unmount boundary:
-
-```voil
-if show_profile:
-	UserCard(
-		name=user.name
-	)
-```
+### 12.3 Scoped module identity
 
 ```text
-false -> true
-	-> create instance
-	-> initialize owned dependency modules
-	-> mount component
+same importer scope + same resolved path
+-> same module instance
 
-true -> false
-	-> cleanup owned dependency modules, dependency-first
-	-> cleanup component-owned mount resources
-	-> unmount instance
-	-> release ordinary local state/dependency instances
-
-false -> true
-	-> create a new instance
-	-> initialize dependencies
-	-> mount new instance
+different importer scope + same resolved path
+-> different module instance
 ```
 
-Branch-local component state is not implicitly retained while the branch is inactive.
+Aliases do not clone module instances.
 
-### 14.6 Keyed repeated UI
+### 12.4 Runtime cycle
 
-Status: `Accepted`.
+Runtime `.voil` import graph must be acyclic in v0.1. A runtime dependency cycle is a compile error.
 
-Repeated UI that creates components must define explicit iteration identity:
-
-```voil
-for user in users key user.id:
-	UserCard(
-		user=user
-	)
-```
-
-This is invalid:
-
-```voil
-for user in users:
-	UserCard(
-		user=user
-	) # compile error
-```
-
-Voiles does not silently use list index/position as component identity.
-
-Stable keys preserve instances across reorder. Removed keys unmount old instances. New keys create new instances. Changed keys replace identity.
-
-For v0.1, key values are `String` or `Int`.
-
-Duplicate key values in one repeated UI evaluation are runtime errors; the runtime must not guess which instance to reuse.
-
-Algorithmic loops that do not create repeated component UI do not require keys.
-
-### 14.7 Component lifecycle and cleanup
-
-Status: `Accepted` for v0.1.
-
-Component-owned resources use `mount:` with optional nested `cleanup:`.
-
-```voil
-component Clock():
-	state now = get_time()
-
-	mount:
-		const timer = start_timer():
-			now = get_time()
-
-		cleanup:
-			timer.stop()
-
-	std.p(now)
-```
-
-Lifecycle rules:
-
-- `mount:` executes exactly once when a new component instance becomes mounted/active;
-- reactive prop/state updates do not rerun `mount:`;
-- keyed reorder with unchanged key does not cleanup/remount;
-- `cleanup:` is legal only inside `mount:`;
-- `cleanup:` may capture lexical bindings declared in the enclosing mount block;
-- `cleanup:` executes exactly once when that mounted instance is unmounted;
-- conditional branch removal triggers dependency-module cleanup, then component cleanup + unmount;
-- conditional re-entry creates a new instance, initializes dependencies and runs mount again;
-- key removal/replacement tears down the old instance using the same dependency-first order;
-- a new key creates/mounts a new instance;
-- v0.1 does not define reactive `effect`, dependency arrays or automatic effect reruns.
-
-Subscription example:
-
-```voil
-mount:
-	const subscription = store.subscribe(update)
-
-	cleanup:
-		subscription.close()
-```
-
-The resource handle can remain lexical to `mount` instead of being stored in component `state`.
-
-Owned ordinary scoped-module dependencies have their own `init:` / `cleanup:` lifecycle and are torn down before the owner component cleanup runs.
-
-### 14.8 Children and slots
-
-Status: `Accepted` baseline.
-
-Component child blocks use the ordinary `:` + indentation model.
-
-```voil
-Card(title="Profile"):
-	std.p(user.name)
-	std.p(user.email)
-```
-
-Unwrapped children form default slot content.
-
-Default outlet:
-
-```voil
-component Card(title: String):
-	container:
-		std.h2(title)
-		slot
-```
-
-Named outlets:
-
-```voil
-component Modal():
-	container:
-		slot header
-		slot
-		slot footer
-```
-
-Caller:
-
-```voil
-Modal():
-	slot header:
-		std.h2("Confirm")
-
-	std.p("Delete this item?")
-
-	slot footer:
-		Button(text="Cancel")
-		Button(text="Delete")
-```
-
-`slot` is a compiler-level insertion point, not an ordinary function call.
-
-Slot content preserves caller lexical scope:
-
-```voil
-const username = "Alice"
-
-Card():
-	std.p(username)
-```
-
-`username` resolves where `Card()` is invoked, not where the component is declared.
-
-Caller slot content does not implicitly access component-local bindings, and the component does not implicitly gain caller-local bindings.
-
-#### 14.8.1 Slot cardinality
-
-Status: `Accepted` for v0.1.
-
-All slot outlets are optional by default.
-
-A component declaration may contain at most one default outlet and at most one outlet per named slot.
-
-A component invocation may provide each named slot at most once.
-
-Compile errors:
-
-- duplicate slot outlets;
-- duplicate named-slot provisions;
-- unknown named slot supplied by caller;
-- ordinary/default children supplied when callee has no default outlet.
-
-A slot provision may contain any number of child nodes.
-
-Required slots, repeated projection/cloning and scoped-slot parameters are not part of v0.1.
+Type-only cycles are allowed if they do not create runtime initialization/ownership edges.
 
 ---
 
-## 15. Container
+## 13. Module lifecycle and side effects
 
-Status: `Draft` semantics.
-
-`container` creates an explicit block-level layout region.
+Module-owned resources use top-level `init:` with nested `cleanup:`：
 
 ```voil
-main:
-	container:
-		std.h1("Hello")
-		UserBtn(text="Click")
-```
-
-The intended model is closer to an HTML `<div>` than to a purely virtual layout construct.
-
-Default lowering may therefore use a `<div>` or equivalent concrete block container.
-
-Compiler wrapper elimination is only valid when removal preserves:
-
-- layout;
-- style scope;
-- event behavior;
-- DOM semantics;
-- accessibility;
-- component lifecycle behavior.
-
-`container(...)` style/layout parameters remain unspecified until CSS integration is designed.
-
----
-
-## 16. CSS and layout integration
-
-Status: `Open`.
-
-The design must answer at least:
-
-1. Does `container(...)` accept a typed layout API, CSS-like properties, or both?
-2. Are styles inline, in separate `.voil` blocks, imported CSS, or a combination?
-3. How does component-local styling coexist with native cascade?
-4. How are custom properties handled?
-5. How are pseudo classes/elements handled?
-6. How are media/container queries handled?
-7. How are animations/keyframes handled?
-8. How can new browser CSS features be used without waiting for a Voiles release?
-9. Which parts can the compiler safely type-check?
-10. What is the raw/native CSS escape hatch?
-
-Until resolved, examples should not treat custom layout names such as `display=horizontal` as final syntax.
-
----
-
-## 17. Routes
-
-Filesystem routing remains part of project semantics.
-
-```text
-app/about.voil -> /about
-app/users/[id].voil -> /users/:id
-```
-
-Candidate typed route parameter:
-
-```voil
-param id: Int
-```
-
-A route conversion failure must not inject an unchecked invalid value into the page. Exact failure behavior remains open.
-
-Planned special files:
-
-```text
-_layout.voil
-_404.voil
-_error.voil
-```
-
----
-
-## 18. HTML safety
-
-Normal text/data passed to standard HTML APIs is not trusted HTML.
-
-```voil
-std.p(user_input)
-```
-
-must escape HTML-sensitive content.
-
-Raw HTML requires a separate trusted type or explicit unsafe boundary.
-
-Candidate:
-
-```text
-TrustedHtml
-```
-
-A plain `String` must not implicitly satisfy it.
-
----
-
-## 19. JavaScript interop
-
-Status: `Open`.
-
-Interop is required, but JS/npm modules are a type/safety boundary.
-
-Required principles:
-
-- JS values do not automatically gain trustworthy Voiles types;
-- `undefined` must be normalized;
-- thrown exceptions must be represented explicitly;
-- mutable external objects require known interop semantics;
-- unsafe direct interop, if provided, must be visibly explicit.
-
----
-
-## 20. Current canonical examples
-
-Scoped module:
-
-```voil
-# chat.voil
 state connected = false
 
 init:
@@ -1081,29 +430,99 @@ init:
 		socket.close()
 ```
 
-Components:
+- `init` once per new scoped module instance；
+- same importer+path reuses instance；
+- owner reactive update does not rerun init；
+- cleanup only nested inside init；
+- cleanup captures init locals；
+- owner destruction tears dependencies down post-order；
+- module-local state releases after module cleanup。
+
+Dependency tree：
+
+```text
+Component
+└─ module A
+   └─ module B
+```
+
+Teardown：
+
+```text
+B cleanup
+-> A cleanup
+-> Component cleanup
+-> Component local state release
+```
+
+Observable module-top-level work must live in `init:`. Ordinary declaration initializers must be effect-free/analyzably non-observable.
+
+---
+
+## 14. Components
+
+### 14.1 Declaration
 
 ```voil
-# buttons.voil
-import std from "@voiles/html-base"
-
 component UserBtn(
 	text: String,
 	disabled: Bool = false
 ):
 	state count = 0
+	...
+```
 
-	fn click():
-		count += 1
+Component parameter surface：
 
-	container:
-		std.button(
-			disabled=disabled,
-			onclick=click
-		)
-		std.p(text)
-		std.p(count)
+- immutable；
+- no default -> required；
+- default -> optional；
+- call named-only；
+- default per new instance；
+- initialization left-to-right；
+- default only references earlier initialized parameters。
 
+### 14.2 Callback prop
+
+```voil
+component Button(
+	text: String,
+	onclick: fn() -> Void
+):
+	std.button(onclick=onclick)
+```
+
+Optional callback may use `Option<fn(...) -> ...>` / `(...)?`.
+
+Native DOM event handler types come from `@voiles/html-base`, e.g. `MouseEvent`, `InputEvent`, `KeyboardEvent`, `SubmitEvent`, `FocusEvent`, `PointerEvent`.
+
+### 14.3 Instance identity
+
+Each invocation identity creates an independent instance scope. Component-local `state` is isolated.
+
+Reactive prop update preserves the existing instance and local state.
+
+Non-repeated invocation identity comes from stable structural position.
+
+Conditional branch exit destroys branch-local identity; re-entry creates a new instance.
+
+### 14.4 Repeated identity
+
+```voil
+for user in users key user.id:
+	UserCard(user=user)
+```
+
+- key required when repeated UI creates components；
+- key type `String | Int`；
+- same key reorder preserves instance；
+- removed/changed key removes old identity；
+- duplicate runtime key is deterministic runtime error；
+- no implicit index identity。
+
+### 14.5 Mount lifecycle
+
+```voil
 component Clock():
 	state now = get_time()
 
@@ -1115,54 +534,354 @@ component Clock():
 			timer.stop()
 
 	std.p(now)
+```
 
+`mount` once per new instance. `cleanup` once per unmount and only legal nested in mount. Prop/state update or same-key reorder does not remount.
+
+Owned module dependencies clean up before component cleanup.
+
+### 14.6 Module-level state in component module
+
+Legal：
+
+```voil
+state module_counter = 0
+
+component A():
+	state local = 0
+```
+
+`module_counter` belongs to scoped module instance; `local` belongs to component instance.
+
+---
+
+## 15. Slots
+
+Default children：
+
+```voil
+Card(title="Profile"):
+	std.p(user.name)
+```
+
+Outlet：
+
+```voil
 component Card(title: String):
 	container:
 		std.h2(title)
 		slot
 ```
 
-Page:
+Named slot：
 
 ```voil
-import std from "@voiles/html-base"
-import UserBtn, Clock, Card from "../ui/components/buttons.voil"
-
-state page_count = 0
-shared session = none
-const username = "Alice"
-
-header:
-	std.h1("Voiles")
-
-main:
-	UserBtn(text="First")
-	UserBtn(text="Second")
-
-	if show_clock:
-		Clock()
-
-	for user in users key user.id:
-		UserBtn(text=user.name)
-
-	Card(title="Profile"):
-		std.p(username)
-
-	std.p(page_count)
+component Modal():
+	container:
+		slot header
+		slot
+		slot footer
 ```
 
-Independent `UserBtn()` identities create independent component instance state. Reactive parameter updates preserve an existing identity. `Clock` runs its mount logic once per mounted instance and cleans up on unmount. Scoped `.voil` dependency modules initialize once per owned module instance and tear down dependency-first. The keyed loop preserves component instances by `user.id`. `shared` remains application-global. `Card` projects caller-authored children without rebinding caller lexical scope.
+```voil
+Modal():
+	slot header:
+		std.h2("Confirm")
+
+	std.p("Content")
+
+	slot footer:
+		Button(text="OK")
+```
+
+Slot content preserves caller lexical scope.
+
+v0.1 cardinality：
+
+- outlets optional；
+- one default outlet；
+- one outlet per named slot；
+- caller one provision per named slot；
+- duplicate/unknown slot compile error；
+- ordinary child content requires default outlet。
+
+Scoped slot/slot parameter is deferred. v0.1 does not define first-class `Ui`/`Node`/`Slot` values.
 
 ---
 
-## 21. Initial grammar sketch
+## 16. Native HTML surface
 
-Descriptive only:
+```voil
+import std from "@voiles/html-base"
+```
+
+`std` is ordinary alias, only canonical by docs/formatter convention.
+
+### 16.1 Structural blocks
+
+Block/container-oriented structural set：
+
+```text
+html
+body
+header
+main
+footer
+nav
+section
+article
+aside
+div
+form
+fieldset
+figure
+blockquote
+ul
+ol
+table
+details
+dialog
+```
+
+Structural block accepts named attributes：
+
+```voil
+section(
+	id="profile",
+	class="panel"
+):
+	std.h2("Profile")
+```
+
+Structural set is maintained by html-base metadata/version rather than making all HTML tags permanent lexer keywords.
+
+### 16.2 `std.*`
+
+Leaf/content-oriented elements use std API：
+
+```voil
+std.h1("Hello")
+std.p(user.name)
+std.img(src=user.avatar, alt=user.name)
+```
+
+html-base baseline：
+
+- typed standard attrs/events；
+- `class` direct；
+- `html_for` -> HTML `for`；
+- `aria_*` / `data_*` -> kebab-case HTML attrs；
+- Bool attrs true emit / false omit；
+- text escaping；
+- void elements reject child blocks；
+- browser HTML evolution handled through html-base metadata package versions。
+
+---
+
+## 17. Container
+
+`container:` is generic concrete block container, default div-like lowering：
+
+```voil
+container:
+	std.p("content")
+```
+
+It accepts div-like attributes/events.
+
+Semantic markup should use structural tags. Compiler may eliminate wrapper only if layout/style/event/DOM/accessibility/lifecycle behavior is proven unchanged.
+
+CSS/style parameter surface is not locked here.
+
+---
+
+## 18. CSS integration status
+
+CSS is a separate design phase. Requirements are fixed but exact syntax is Open：
+
+- preserve native CSS compatibility/cascade；
+- support native `.css` usage；
+- component-local scope without blocking normal cascade；
+- custom properties；
+- pseudo classes/elements；
+- media/container queries；
+- keyframes/animations；
+- forward compatibility with new browser CSS；
+- optional compiler-checkable subset；
+- raw/native CSS escape hatch。
+
+v0.1 baseline deliberately does not invent a restrictive custom CSS DSL before this design pass.
+
+---
+
+## 19. Routes
+
+Filesystem routing baseline：
+
+```text
+app/index.voil              -> /
+app/about.voil              -> /about
+app/users/[id].voil         -> /users/:id
+app/docs/[...slug].voil     -> one-or-more catch-all
+app/docs/[[...slug]].voil   -> optional catch-all
+```
+
+Conflicting route patterns are compile errors.
+
+Reserved route files：
+
+```text
+_layout.voil
+_404.voil
+_error.voil
+```
+
+### 19.1 Typed params
+
+```voil
+param id: Int
+```
+
+Dynamic path segment is converted before page receives it. Conversion failure means this typed route does not match and enters nearest 404 fallback, never injects invalid `Int`.
+
+Catch-all default type is `List<String>`.
+
+### 19.2 Layout/error lifetime
+
+Nested layout instance remains mounted while navigation stays inside the same route subtree and preserves local state. Leaving subtree tears it down using normal component/module lifecycle.
+
+Nearest ancestor `_error.voil` handles route/component boundary failures. Nearest segment `_404.voil` handles no-match/typed-param failure; root fallback is last resort.
+
+Typed route-link API must validate required params against generated route schema.
+
+---
+
+## 20. HTML / URL safety
+
+Plain `String` is never trusted HTML.
+
+`TrustedHtml` is nominal. Runtime user content must pass sanitizer API before becoming `TrustedHtml`. Any unsafe raw conversion must be explicit/visibly unsafe.
+
+Compile-time URL literals are scheme-validated. Dynamic URL values for sensitive sinks use nominal `Url`/safe wrapper produced by a safe parser; dangerous schemes such as `javascript:` are rejected.
+
+Ordinary text sinks always escape.
+
+---
+
+## 21. JavaScript/npm interop
+
+Native JS/npm module is an explicit foreign boundary：
+
+```voil
+extern import * as lib from "some-js-package"
+```
+
+Foreign values default to opaque `JsValue` unless generated/standard bindings provide typed signatures.
+
+- no unconstrained native `any`；
+- `.d.ts` may be binding-generation input but does not bypass runtime boundary rules；
+- JS `undefined` -> Option/none at typed boundary；
+- JS throw/Promise rejection -> explicit `Err` through adapter；
+- mutable external objects require explicit wrapper semantics。
+
+Exact binding-generator/tooling details remain implementation work.
+
+---
+
+## 22. Async/error
+
+```voil
+async fn load_user(id: Int) -> Result<User, LoadError>:
+	const response = await fetch_user(id)?
+	return parse_user(response)?
+```
+
+v0.1 baseline：
+
+- `async fn`；
+- `await`；
+- `Result<T,E>`；
+- `?` early propagation for compatible Result/Option contexts；
+- no ordinary native `throw` control flow；
+- foreign exceptions/rejections normalized to explicit error results；
+- async callback must match declared async callback type and may not silently drop failure。
+
+---
+
+## 23. Compiler representation
+
+Pipeline：
+
+```text
+source
+-> tokens
+-> lossless CST
+-> syntax AST
+-> resolved HIR
+-> typed HIR
+-> reactivity/identity/lifecycle lowering IR
+-> HTML/CSS/JS codegen
+```
+
+### 23.1 CST
+
+Preserves：
+
+- comments/trivia；
+- exact source spans；
+- lexical line/indentation structure；
+- formatter-relevant syntax。
+
+### 23.2 HIR
+
+Owns：
+
+- symbol resolution；
+- type resolution；
+- import/export identity；
+- component/slot binding；
+- module instance ownership；
+- closure capture/lifetime constraints。
+
+### 23.3 Lowering IR
+
+Owns：
+
+- reactive dependencies；
+- component structural/key identity；
+- module init/cleanup ownership；
+- mount/cleanup；
+- route lowering；
+- safe HTML/URL sink lowering。
+
+### 23.4 Diagnostics
+
+Diagnostics need stable code, primary span, optional secondary spans, expected/found/context and recovery where safe. Parser should continue after malformed indentation/incomplete block when a deterministic recovery point exists.
+
+---
+
+## 24. Dev HMR semantics
+
+Voiles uses Vite/framework tooling HMR boundaries underneath; no `import.meta.hot` syntax is exposed in `.voil` source.
+
+- compatible component body edit -> preserve instance/local state；
+- incompatible component parameter/state declaration/lifecycle shape -> remount affected boundary；
+- module init/dependency graph change -> cleanup old owned subtree then init replacement；
+- `shared` cell may preserve only when declaration identity + type remain compatible；
+- compiler error -> keep last successful dev module graph running and show diagnostic；
+- HMR state preservation is dev-only and does not redefine production lifecycle semantics。
+
+Exact compatibility hash/fingerprint and Vite invalidation propagation are implementation work.
+
+---
+
+## 25. Initial grammar sketch
 
 ```text
 module                 := moduleItem* EOF
 
 moduleItem             := importDecl
+                        | exportDecl
                         | typeDecl
                         | bindingDecl
                         | functionDecl
@@ -1170,32 +889,32 @@ moduleItem             := importDecl
                         | paramDecl
                         | initBlock
                         | structuralBlock
-                        | expressionStatement
 
 block                  := ":" NEWLINE INDENT statement* DEDENT
-comment                := "#" commentText NEWLINE
 
-importDecl             := "import" importItem ("," importItem)* "from" stringLiteral
-importItem             := identifier importAlias?
-importAlias            := "as" identifier
+importDecl             := "import" importItems "from" stringLiteral
+                        | "import" "*" "as" identifier "from" stringLiteral
+                        | externImportDecl
+importItems            := importItem ("," importItem)*
+importItem             := identifier ("as" identifier)?
 
-functionDecl           := "fn" identifier parameters returnType? block
+externImportDecl       := "extern" "import" ... "from" stringLiteral
+
+exportDecl             := "export" (functionDecl | constDecl | stateDecl | sharedDecl | structDecl | enumDecl)
+
+functionDecl           := asyncModifier? "fn" identifier parameters returnType? block
 componentDecl          := "component" PascalIdentifier componentParameters componentBlock
-componentParameters    := "(" componentParameterList? ")"
-componentParameter     := identifier typeAnnotation ("=" expression)?
-componentBlock         := ":" NEWLINE INDENT componentItem* DEDENT
 
 bindingDecl            := constDecl | stateDecl | sharedDecl
 constDecl              := "const" identifier typeAnnotation? "=" expression
 stateDecl              := "state" identifier typeAnnotation? "=" expression
 sharedDecl             := "shared" identifier typeAnnotation? "=" expression
 
-componentItem          := statement | slotOutlet | mountBlock
-componentCall          := PascalIdentifier componentCallArguments childBlock?
-componentCallArguments := "(" namedArgumentList? ")"
+structDecl             := "struct" identifier block
+enumDecl               := "enum" identifier genericParams? block
 
+componentCall          := PascalIdentifier "(" namedArgumentList? ")" childBlock?
 childBlock             := ":" NEWLINE INDENT childItem* DEDENT
-childItem              := namedSlotBlock | uiStatement
 namedSlotBlock         := "slot" identifier block
 slotOutlet             := "slot" identifier?
 
@@ -1207,101 +926,52 @@ keyedForUi             := "for" identifier "in" expression "key" expression bloc
 
 structuralBlock        := structuralName callArguments? block
 standardHtmlCall       := identifier "." identifier callArguments
-callArguments          := "(" argumentList? ")"
 namedArgument          := identifier "=" expression
 ```
 
-Component imports use comma-separated item lists. `importAlias` with `as` remains Draft.
-
-Component-call semantic validation must reject positional arguments, duplicate arguments, unknown argument names and missing required parameters.
-
-Component parameter bindings are immutable. Defaults are evaluated for each new instance in declaration order and may reference only earlier parameters.
-
-Semantic validation/runtime lowering must also:
-
-- reject `sharedDecl` outside module top level;
-- reject duplicate component declaration names;
-- create independent scopes for new component invocation identities;
-- preserve existing instances when only reactive parameter values change;
-- use structural invocation identity outside repeated UI;
-- unmount branch-local identities when their condition becomes inactive;
-- reject repeated component UI without explicit `key`;
-- type-check v0.1 keys as `String` or `Int`;
-- detect duplicate runtime keys in one repeated UI evaluation;
-- preserve component instance/state across keyed reorder;
-- run component `mount` once per new mounted instance identity;
-- allow component `cleanup` only nested under `mount` and preserve mount lexical capture;
-- run scoped module `init` once per new ordinary module instance;
-- allow module `cleanup` only inside its `init` lifecycle scope and preserve init lexical capture;
-- reuse module instances/lifecycles for same importer scope + same resolved path;
-- tear down scoped module dependencies recursively before importer/owner cleanup;
-- keep `shared` storage alive independently from ordinary scoped-module teardown;
-- lower slot content without rebinding caller lexical scope;
-- validate slot cardinality and unknown slots;
-- expose top-level component declarations automatically to component import resolution.
-
-The grammar still needs final decisions for:
-
-- multiline call indentation;
-- exact structural block name table;
-- expression precedence;
-- CSS/style contexts;
-- component alias finalization;
-- slot parameter/type details;
-- non-component import/export semantics;
-- cyclic module initialization/cleanup.
+Exact expression parser should implement the accepted precedence rather than relying on this sketch.
 
 ---
 
-## 22. Compiler/CST/runtime requirements
+## 26. Deferred / Open
 
-Accepted syntax requires:
+### Open implementation/prototype details
 
-- deterministic `NEWLINE`, `INDENT`, `DEDENT` behavior or equivalent parser model;
-- `:` block opener recognition;
-- line comments beginning with `#`;
-- lossless comment/trivia preservation;
-- source spans suitable for diagnostics;
-- multiline parenthesized-expression continuation;
-- recovery after malformed indentation;
-- comma-separated import item parsing;
-- distinction among structural block, component declaration, standard HTML call, ordinary call and component call;
-- component named-only argument validation;
-- component default dependency/order validation;
-- parsing/lowering of child blocks and slots;
-- caller lexical-scope preservation through slot lowering;
-- slot cardinality validation;
-- structural component identity generation;
-- keyed repeated-component identity and reorder preservation;
-- duplicate-key runtime validation;
-- component lifecycle lowering for one-shot mount/cleanup;
-- scoped module lifecycle lowering for one-shot init/cleanup;
-- importer ownership tracking for ordinary scoped-module instances;
-- dependency-first/post-order module teardown before owner component cleanup;
-- cleanup lexical capture preservation;
-- component-local state preservation across reactive parameter updates/reorder;
-- module-instance reuse for repeated same-scope/same-path imports;
-- `shared` lifetime separation from ordinary module teardown;
-- component symbol indexing per module;
-- component dependency graph construction;
-- dead-code elimination eligibility for unreachable component declarations.
+- closure escape analysis algorithm；
+- effect/resource classification；
+- foreign `.d.ts` binding generation；
+- async callback/browser adapter ABI；
+- application bootstrap special surface；
+- HMR compatibility fingerprints；
+- html-base metadata generation/versioning。
+
+### Separate CSS design phase
+
+CSS syntax/scoping remains intentionally open under the compatibility requirements in §18.
+
+### Deferred beyond v0.1
+
+- scoped slot / slot parameter；
+- first-class UI value；
+- struct update sugar；
+- match guard；
+- macro system；
+- user operator overloading；
+- Rust-style borrow/lifetime syntax；
+- SSR-only syntax；
+- ecosystem/package policy finalization。
 
 ---
 
-## 23. Next decisions required
+## 27. Implementation gate
 
-Parser-blocking or near-blocking priorities:
+The language P0 baseline is now sufficiently specified for a parser/compiler prototype, but implementation has not started.
 
-1. finalize `NEWLINE` / `INDENT` / `DEDENT` and multiline continuation rules;
-2. finalize remaining `const/state/shared` lowering details and decide whether local `mut` is needed;
-3. define top-level structural block grammar and valid structural names;
-4. finalize component import alias syntax (`as` currently recommended);
-5. finalize general named-argument `=` grammar for ordinary functions/struct construction;
-6. define initial expression precedence;
-7. define `@voiles/html-base` minimum API surface and event typing;
-8. define cyclic scoped-module initialization/cleanup and `shared` initialization behavior;
-9. define application-global resource lifetime for resources intentionally stored in `shared` bindings;
-10. separately design CSS/layout integration before locking `container(...)` parameters;
-11. define module top-level side-effect policy so tree-shaking guarantees are precise;
-12. define non-component default/named/namespace import semantics;
-13. define slot parameter/type semantics only if a concrete use case requires them.
+Before implementation：
+
+1. create a new implementation branch；
+2. consult current official docs for each external package before selecting/using it；
+3. use current project-compatible package versions；
+4. add/update `AI-build/compiler.md`, `type-system.md`, `routing.md`, `runtime.md`, `security.md`, `known-issues.md` as implementation contracts；
+5. do not merge to `main` without explicit authorization；
+6. merge to `main` only with squash commit。
