@@ -8,7 +8,7 @@ Current branch: `implementation/compiler-bootstrap`.
 
 任何 merge 到 `main` 都使用 squash commit；未經明確授權不合併 `main`。
 
-## Active — Milestone 0A lexer bootstrap
+## Completed — Milestone 0A lexer bootstrap
 
 - [x] Create implementation branch from `planning/syntax-spec`.
 - [x] Initialize Rust 2024 virtual workspace with Cargo resolver 3.
@@ -24,18 +24,20 @@ Current branch: `implementation/compiler-bootstrap`.
 - [x] Implement initial identifier, decimal number, string, punctuation/operator lexing.
 - [x] Implement delimiter mismatch/unclosed diagnostics.
 - [x] Author lexer unit tests for indentation, blank/comment lines, continuation, EOF, tab ambiguity, invalid dedent, trivia preservation, unclosed delimiter.
-- [ ] Run `cargo check --workspace` in a Rust-capable environment.
-- [ ] Run `cargo test --workspace` in a Rust-capable environment.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings` in a Rust-capable environment.
-- [ ] Fix any compiler/test/clippy failures before beginning parser implementation.
+- [x] Run `cargo fmt --all -- --check` on GitHub Actions.
+- [x] Run `cargo check --workspace` on GitHub Actions.
+- [x] Run `cargo test --workspace` on GitHub Actions.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings` on GitHub Actions.
+- [x] Fix the initial rustfmt CI failure and obtain a fully green compiler CI run.
 
-Verification note: the current execution container had no Rust toolchain and external DNS blocked rustup installation. The Rust source is therefore written/reviewed but not yet toolchain-verified.
+Verification: GitHub Actions run `34813462150` at `7b7485fb035e870e0816306dc2c113f04289a2df` passed fmt/check/test/clippy. The local execution container still lacks Rust, so CI remains the executable verification environment for this branch.
 
 ## Next — Milestone 0B lossless CST/parser
 
-Do not begin until the Milestone 0A verification commands pass.
+Milestone 0A verification gate is satisfied. Parser implementation has not started yet.
 
-- [ ] Create `crates/voiles-syntax` only after lexer verification.
+- [ ] Create `crates/voiles-syntax` after re-reading the current compiler/grammar contracts.
+- [ ] Select parser/CST dependencies only after checking their current official documentation; zero-dependency implementation remains acceptable if preferred.
 - [ ] Parse module/items while retaining lexer trivia/source spans.
 - [ ] Parse bindings, imports/exports, `fn`, component declarations/calls.
 - [ ] Parse accepted expression precedence and named/positional call rules.
