@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod kind;
+#[path = "parser/mod.rs"]
 mod parser;
 mod tree;
 
