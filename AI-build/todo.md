@@ -2,9 +2,9 @@
 
 ## Current phase
 
-`v0.1 language baseline accepted; compiler bootstrap Milestone 0B parser verified.`
+`v0.1 language baseline accepted; compiler bootstrap Milestone 1A semantic HIR implementation verified.`
 
-Current branch: `implementation/lossless-cst-parser`.
+Current branch: `implementation/semantic-hir-bootstrap`.
 
 任何 merge 到 `main` 都使用 squash commit；未經明確授權不合併 `main`。
 
@@ -49,14 +49,51 @@ Implementation is present on `implementation/lossless-cst-parser` and the parser
 - [x] Add source round-trip and CST descendant span/count helpers for tests/tooling.
 - [x] Define deterministic recovery tests for malformed indentation/incomplete blocks.
 - [x] Correct parser fixtures so reserved keywords such as `state` are not used as ordinary identifiers.
-- [x] Run `cargo fmt --all -- --check` on the verified 0B implementation state.
-- [x] Run `cargo check --workspace` on the verified 0B implementation state.
-- [x] Run `cargo test --workspace` on the verified 0B implementation state.
-- [x] Run `cargo clippy --workspace --all-targets -- -D warnings` on the verified 0B implementation state.
+- [x] Run final 0B fmt/check/test/clippy gates.
 
-Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3edacf71745e` passed fmt/check/test/clippy.
+Verification: final 0B GitHub Actions run `34816974670` at `9da619178c9ce2d5f337a057fabba732f485121a` passed fmt/check/test/clippy.
 
-## Resolved — lexical / parser baseline
+## Completed — Milestone 1A syntax AST + semantic HIR
+
+Implementation is present on `implementation/semantic-hir-bootstrap`. The implementation-code state was verified before documentation closeout.
+
+- [x] Add zero-copy typed AST façade over lossless CST.
+- [x] Add direct CST child/token traversal for semantic passes.
+- [x] Create zero-third-party `crates/voiles-hir`.
+- [x] Add stable scope/symbol/reference/capture model with `ScopeId` / `SymbolId`.
+- [x] Resolve nearest lexical binding and preserve shadowing semantics.
+- [x] Diagnose same-scope duplicate declarations (`VHIR001`).
+- [x] Diagnose use-before-declaration with pending declaration activation (`VHIR002`).
+- [x] Diagnose unresolved lexical names (`VHIR003`).
+- [x] Diagnose direct assignment to immutable bindings (`VHIR004`).
+- [x] Enforce `shared` as module-top-level-only (`VHIR005`).
+- [x] Resolve function/component parameters left-to-right so defaults may only see earlier parameters.
+- [x] Model function/component/block/loop/match-arm/lifecycle scopes.
+- [x] Discover nested function closure captures without claiming escape analysis is complete.
+- [x] Validate `init` / `mount` / nested `cleanup` lexical ownership (`VHIR006`).
+- [x] Defer direct UI head component-vs-html identity while resolving lexical names in arguments/body.
+- [x] Add 9 semantic HIR behavior tests.
+- [x] Pass implementation-code fmt/check/test/clippy gates.
+
+Verification: GitHub Actions run `34819797481` at `4551b961b89a69ead482e49fd7117d6064d65e43` passed fmt/check/test/clippy. Final documentation commits must retain the same gates before the milestone branch is considered closed.
+
+## Next — Milestone 1B module graph + type checker bootstrap
+
+- [ ] Create explicit module source identity used by semantic graph passes.
+- [ ] Extract automatic component exports and explicit non-component exports.
+- [ ] Resolve named and namespace `.voil` imports against module export tables.
+- [ ] Distinguish runtime dependency edges from type-only dependency edges.
+- [ ] Reject runtime dependency cycles while allowing valid type-only cycles.
+- [ ] Resolve type-reference identity against local/imported/generic type namespaces.
+- [ ] Create `crates/voiles-types` only when the HIR module/type identity contract is ready.
+- [ ] Type-check primitive literals and explicit primitive references.
+- [ ] Type-check lexical binding initializers/assignments using existing resolved `SymbolId`.
+- [ ] Type-check first function signatures/calls.
+- [ ] Keep component/slot/html metadata validation out until imported/type identities are available.
+- [ ] Add cross-module and first type-checker test fixtures.
+- [ ] Pass fmt/check/test/clippy gates on the final 1B branch head.
+
+## Resolved language baseline — lexical / parser
 
 - [x] `:` + significant indentation block model.
 - [x] Python-style logical line / indentation-stack `NEWLINE` / `INDENT` / `DEDENT` semantics.
@@ -79,7 +116,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] Module `init` / nested `cleanup` grammar baseline.
 - [x] Source-span/error-recovery requirements defined for compiler diagnostics.
 
-## Resolved — binding / scope / lifetime
+## Resolved language baseline — binding / scope / lifetime
 
 - [x] Finalize binding model as `const / state / shared`.
 - [x] Remove `let / var / mut` from v0.1.
@@ -101,7 +138,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] Observable module-top-level work must live in `init:`.
 - [x] `shared` initializer cannot directly own cleanup-requiring external resources.
 
-## Resolved — type/core language baseline
+## Resolved language baseline — type/core language
 
 - [x] `T? == Option<T>`.
 - [x] `none` as empty option literal.
@@ -117,7 +154,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] List `[]` checked indexing + `.get()` optional indexing.
 - [x] Negative index is out-of-bounds, not Python reverse indexing.
 
-## Resolved — component baseline
+## Resolved language baseline — component
 
 - [x] Explicit `component Name(...):` declarations.
 - [x] Multiple components per module.
@@ -142,7 +179,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] Scoped slot deferred.
 - [x] First-class UI value type deferred.
 
-## Resolved — HTML / container baseline
+## Resolved language baseline — HTML / container
 
 - [x] `std` is ordinary canonical alias, not reserved namespace.
 - [x] Structural block/container-level HTML names use direct block surface.
@@ -157,7 +194,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] `container` is concrete generic block node, default div-like lowering.
 - [x] Wrapper elimination only with full semantic-preservation proof.
 
-## Resolved — module API / interop baseline
+## Resolved language baseline — module API / interop
 
 - [x] Component export automatic; non-component export explicit with `export`.
 - [x] Named imports share list + `as` syntax.
@@ -169,7 +206,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] JS `undefined` normalizes to Option/none at typed boundary.
 - [x] JS throw/Promise rejection normalize to explicit error results.
 
-## Resolved — route baseline
+## Resolved language baseline — route
 
 - [x] File-based static route grammar.
 - [x] `[id]` dynamic segment.
@@ -184,7 +221,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] Nearest `_error` boundary and nearest `_404` fallback semantics.
 - [x] Typed route-link API requirement.
 
-## Resolved — safety baseline
+## Resolved language baseline — safety
 
 - [x] Plain `String` never equals trusted HTML.
 - [x] `TrustedHtml` nominal boundary.
@@ -194,7 +231,7 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 - [x] Compile-time URL literals are scheme-validated.
 - [x] Dangerous URL schemes rejected by safe parser.
 
-## Resolved — compiler architecture / HMR semantics
+## Resolved language baseline — compiler architecture / HMR semantics
 
 - [x] Pipeline: tokens -> lossless CST -> AST -> resolved HIR -> typed HIR -> lowering IR -> HTML/CSS/JS.
 - [x] CST preserves comments/trivia/source spans.
@@ -210,11 +247,12 @@ Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3
 
 ## Open — implementation/prototype decisions
 
-These are no longer language-surface blockers but require prototype work before production implementation is considered stable:
+These are accepted semantic requirements whose exact implementation still requires prototype work:
 
-- [ ] Exact closure escape-analysis algorithm/diagnostics.
+- [ ] Owner-bound closure escape-analysis algorithm/diagnostics. Capture discovery is implemented in 1A; lifetime escape rejection is not.
 - [ ] Effect/resource classification for top-level initializer and shared-resource validation.
-- [ ] Exact parser recovery heuristics for malformed indentation/incomplete block.
+- [ ] Cross-module runtime-vs-type dependency edge classification and cycle diagnostics.
+- [ ] Exact parser recovery heuristics for pathological malformed nesting.
 - [ ] Foreign binding generator from `.d.ts`/schema and `JsValue` conversion APIs.
 - [ ] Exact async callback ABI and browser Promise adapter.
 - [ ] Application bootstrap/root special surface.
