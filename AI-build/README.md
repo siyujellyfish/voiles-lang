@@ -7,11 +7,11 @@
 - 專案：Voiles
 - 原始碼副檔名：`.voil`
 - v0.1 language baseline：Accepted
-- 階段：compiler bootstrap / Milestone 0A lexer
-- 工作 branch：`implementation/compiler-bootstrap`
+- 階段：compiler bootstrap / Milestone 0B lossless CST/parser
+- 工作 branch：`implementation/lossless-cst-parser`
 - Rust workspace：2024 edition，Cargo resolver 3
-- 目前 compiler code：`crates/voiles-lexer`
-- 第一批 lexer 不使用第三方 crate
+- 目前 compiler code：`crates/voiles-lexer`、`crates/voiles-syntax`
+- 目前 bootstrap 不使用第三方 crate
 - 未經明確授權不合併 `main`
 
 ## 文件
