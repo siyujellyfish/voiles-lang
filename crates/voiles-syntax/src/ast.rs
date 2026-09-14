@@ -92,7 +92,7 @@ impl<'a> ExportDecl<'a> {
 	}
 }
 
-impl BindingDecl<'_> {
+impl<'a> BindingDecl<'a> {
 	pub fn keyword(self) -> Option<Keyword> {
 		self.syntax
 			.direct_tokens()
@@ -108,7 +108,7 @@ impl BindingDecl<'_> {
 		first_identifier(self.syntax)
 	}
 
-	pub fn initializer(self) -> Option<&SyntaxNode> {
+	pub fn initializer(self) -> Option<&'a SyntaxNode> {
 		self.syntax
 			.child_nodes()
 			.find(|node| is_expression_kind(node.kind))
@@ -159,12 +159,12 @@ impl<'a> ComponentDecl<'a> {
 	}
 }
 
-impl Parameter<'_> {
+impl<'a> Parameter<'a> {
 	pub fn name_token(self) -> Option<Token> {
 		first_identifier(self.syntax)
 	}
 
-	pub fn default_expression(self) -> Option<&SyntaxNode> {
+	pub fn default_expression(self) -> Option<&'a SyntaxNode> {
 		self.syntax
 			.child_nodes()
 			.find(|node| is_expression_kind(node.kind))
@@ -189,7 +189,7 @@ impl ForStmt<'_> {
 	}
 }
 
-impl LifecycleBlock<'_> {
+impl<'a> LifecycleBlock<'a> {
 	pub fn keyword(self) -> Option<Keyword> {
 		self.syntax
 			.direct_tokens()
@@ -201,7 +201,7 @@ impl LifecycleBlock<'_> {
 			})
 	}
 
-	pub fn body(self) -> Option<Block<'_>> {
+	pub fn body(self) -> Option<Block<'a>> {
 		self.syntax.child_nodes().find_map(Block::cast)
 	}
 }
