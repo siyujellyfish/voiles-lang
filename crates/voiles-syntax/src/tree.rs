@@ -82,4 +82,22 @@ impl SyntaxNode {
 			})
 			.sum::<usize>()
 	}
+
+	#[must_use]
+	pub fn descendant_spans(&self, kind: SyntaxKind) -> Vec<Span> {
+		let mut spans = Vec::new();
+		self.push_descendant_spans(kind, &mut spans);
+		spans
+	}
+
+	fn push_descendant_spans(&self, kind: SyntaxKind, spans: &mut Vec<Span>) {
+		if self.kind == kind {
+			spans.push(self.span);
+		}
+		for child in &self.children {
+			if let SyntaxElement::Node(node) = child {
+				node.push_descendant_spans(kind, spans);
+			}
+		}
+	}
 }
