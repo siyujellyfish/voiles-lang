@@ -5,6 +5,24 @@ use crate::{SyntaxKind, SyntaxNode};
 use super::Parser;
 
 impl Parser<'_> {
+	pub(super) fn parse_param(&mut self) -> SyntaxNode {
+		let mut children = Vec::new();
+		self.expect_keyword(&mut children, Keyword::Param, "expected `param`");
+		self.expect(
+			&mut children,
+			TokenKind::Identifier,
+			"expected route parameter name",
+		);
+		self.expect(
+			&mut children,
+			TokenKind::Colon,
+			"expected `:` after route parameter name",
+		);
+		children.push(self.parse_type().into());
+		self.finish_simple_line(&mut children);
+		SyntaxNode::new(SyntaxKind::ParamDecl, children)
+	}
+
 	pub(super) fn parse_component(&mut self) -> SyntaxNode {
 		let mut children = Vec::new();
 		self.expect_keyword(&mut children, Keyword::Component, "expected `component`");
