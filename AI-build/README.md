@@ -7,11 +7,14 @@
 - 專案：Voiles
 - 原始碼副檔名：`.voil`
 - v0.1 language baseline：Accepted
-- 階段：compiler bootstrap / Milestone 0B lossless CST/parser
-- 工作 branch：`implementation/lossless-cst-parser`
+- 階段：compiler bootstrap / Milestone 1A syntax AST + semantic HIR
+- 工作 branch：`implementation/semantic-hir-bootstrap`
 - Rust workspace：2024 edition，Cargo resolver 3
-- 目前 compiler code：`crates/voiles-lexer`、`crates/voiles-syntax`
+- 目前 compiler code：`crates/voiles-lexer`、`crates/voiles-syntax`、`crates/voiles-hir`
 - 目前 bootstrap 不使用第三方 crate
+- Milestone 0A lexer：Verified
+- Milestone 0B lossless CST/parser：Verified
+- Milestone 1A single-module lexical/name resolution：Verified code state；final documentation head CI 仍需保持全綠
 - 未經明確授權不合併 `main`
 
 ## 文件
@@ -20,8 +23,8 @@
 - [`syntax-decisions.md`](./syntax-decisions.md)：Accepted/Open/Deferred 設計決策 registry。
 - [`state-model.md`](./state-model.md)：`const` / `state` / `shared`、closure、scoped module、component identity/lifecycle。
 - [`component-model.md`](./component-model.md)：component declaration/export/parameters/callback/identity/lifecycle/slots/tree-shaking。
-- [`compiler.md`](./compiler.md)：compiler pipeline、lexer contract、parser handoff 與驗證 gate。
-- [`type-system.md`](./type-system.md)：type checker implementation contract。
+- [`compiler.md`](./compiler.md)：compiler pipeline、lexer/parser/AST/HIR implementation contract 與驗證 gate。
+- [`type-system.md`](./type-system.md)：type checker implementation contract 與 HIR handoff。
 - [`runtime.md`](./runtime.md)：reactivity、identity、module/component lifecycle runtime contract。
 - [`routing.md`](./routing.md)：file routing 與 typed route implementation contract。
 - [`security.md`](./security.md)：TrustedHtml/URL/foreign/resource safety implementation contract。
