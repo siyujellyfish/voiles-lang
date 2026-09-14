@@ -76,11 +76,13 @@ fn leaves_direct_ui_head_for_later_component_or_html_resolution() {
 	let result = resolve_module(source);
 
 	assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-	assert!(!result
-		.module
-		.references
-		.iter()
-		.any(|reference| reference.name == "section"));
+	assert!(
+		!result
+			.module
+			.references
+			.iter()
+			.any(|reference| reference.name == "section")
+	);
 	assert_eq!(
 		result
 			.module
@@ -105,9 +107,11 @@ fn component_parameter_defaults_are_left_to_right() {
 	let result = resolve_module(source);
 
 	assert!(has_diagnostic(&result, "VHIR002"));
-	assert!(result
-		.module
-		.symbols
-		.iter()
-		.any(|symbol| symbol.name == "Card" && symbol.kind == SymbolKind::Component));
+	assert!(
+		result
+			.module
+			.symbols
+			.iter()
+			.any(|symbol| symbol.name == "Card" && symbol.kind == SymbolKind::Component)
+	);
 }
