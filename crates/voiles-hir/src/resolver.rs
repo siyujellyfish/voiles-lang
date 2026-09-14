@@ -443,7 +443,9 @@ impl<'source> Resolver<'source> {
 					self.resolve_expression(child, scope);
 				}
 			}
-			_ => self.resolve_expression(node, scope),
+			_ => {
+				self.resolve_expression(node, scope);
+			}
 		}
 	}
 
