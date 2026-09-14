@@ -24,13 +24,26 @@ fn resolves_component_and_explicit_exports_across_modules() {
 
 	assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 	let library = &result.project.modules[0];
-	assert_eq!(library.export("Button").expect("component export").kind, SymbolKind::Component);
-	assert_eq!(library.export("helper").expect("function export").kind, SymbolKind::Function);
-	assert_eq!(library.export("User").expect("type export").kind, SymbolKind::Struct);
+	assert_eq!(
+		library.export("Button").expect("component export").kind,
+		SymbolKind::Component
+	);
+	assert_eq!(
+		library.export("helper").expect("function export").kind,
+		SymbolKind::Function
+	);
+	assert_eq!(
+		library.export("User").expect("type export").kind,
+		SymbolKind::Struct
+	);
 
 	let main = &result.project.modules[1];
 	assert_eq!(main.imports.len(), 3);
-	assert!(main.imports.iter().all(|binding| binding.target_module.is_some()));
+	assert!(
+		main.imports
+			.iter()
+			.all(|binding| binding.target_module.is_some())
+	);
 	let helper = main
 		.imports
 		.iter()
@@ -55,11 +68,13 @@ fn rejects_runtime_module_cycles() {
 	]);
 
 	assert!(has_diagnostic(&result, "VHIR010"));
-	assert!(result
-		.project
-		.dependencies
-		.iter()
-		.all(|edge| edge.kind == DependencyKind::Runtime));
+	assert!(
+		result
+			.project
+			.dependencies
+			.iter()
+			.all(|edge| edge.kind == DependencyKind::Runtime)
+	);
 }
 
 #[test]
@@ -75,12 +90,18 @@ fn allows_cycles_when_edges_are_type_only() {
 		),
 	]);
 
-	assert!(!has_diagnostic(&result, "VHIR010"), "{:?}", result.diagnostics);
-	assert!(result
-		.project
-		.dependencies
-		.iter()
-		.all(|edge| edge.kind == DependencyKind::TypeOnly));
+	assert!(
+		!has_diagnostic(&result, "VHIR010"),
+		"{:?}",
+		result.diagnostics
+	);
+	assert!(
+		result
+			.project
+			.dependencies
+			.iter()
+			.all(|edge| edge.kind == DependencyKind::TypeOnly)
+	);
 	assert!(result.project.modules.iter().all(|module| {
 		module
 			.type_references
@@ -100,10 +121,14 @@ fn resolves_namespace_qualified_type_references_without_runtime_edge() {
 	]);
 
 	assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-	assert_eq!(result.project.dependencies[0].kind, DependencyKind::TypeOnly);
+	assert_eq!(
+		result.project.dependencies[0].kind,
+		DependencyKind::TypeOnly
+	);
 	let page = &result.project.modules[1];
 	assert!(page.type_references.iter().any(|reference| {
-		reference.path == ["models", "User"] && matches!(reference.target, Some(TypeTarget::Symbol(_)))
+		reference.path == ["models", "User"]
+			&& matches!(reference.target, Some(TypeTarget::Symbol(_)))
 	}));
 }
 
