@@ -39,11 +39,7 @@ impl Parser<'_> {
 	pub(super) fn parse_struct(&mut self) -> SyntaxNode {
 		let mut children = Vec::new();
 		self.expect_keyword(&mut children, Keyword::Struct, "expected `struct`");
-		self.expect(
-			&mut children,
-			TokenKind::Identifier,
-			"expected struct name",
-		);
+		self.expect(&mut children, TokenKind::Identifier, "expected struct name");
 
 		let mut block = Vec::new();
 		self.begin_indented_block(&mut block);
@@ -91,11 +87,7 @@ impl Parser<'_> {
 	pub(super) fn parse_enum(&mut self) -> SyntaxNode {
 		let mut children = Vec::new();
 		self.expect_keyword(&mut children, Keyword::Enum, "expected `enum`");
-		self.expect(
-			&mut children,
-			TokenKind::Identifier,
-			"expected enum name",
-		);
+		self.expect(&mut children, TokenKind::Identifier, "expected enum name");
 		if self.peek_significant_kind(0) == Some(TokenKind::Less) {
 			children.push(self.parse_generic_parameter_list().into());
 		}
@@ -182,11 +174,7 @@ impl Parser<'_> {
 		let mut children = Vec::new();
 		self.expect_keyword(&mut children, Keyword::Slot, "expected `slot`");
 		if self.peek_significant_kind(0) == Some(TokenKind::Identifier) {
-			self.expect(
-				&mut children,
-				TokenKind::Identifier,
-				"expected slot name",
-			);
+			self.expect(&mut children, TokenKind::Identifier, "expected slot name");
 		}
 		if self.peek_significant_kind(0) == Some(TokenKind::Colon) {
 			children.push(self.parse_block().into());
