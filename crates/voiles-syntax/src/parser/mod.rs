@@ -1,5 +1,7 @@
+mod declaration;
 mod expr;
 mod item;
+mod pattern;
 mod types;
 
 #[cfg(test)]
@@ -81,6 +83,9 @@ impl<'tokens> Parser<'tokens> {
 				self.parse_binding()
 			}
 			TokenKind::Keyword(Keyword::Fn | Keyword::Async) => self.parse_function(),
+			TokenKind::Keyword(Keyword::Component) => self.parse_component(),
+			TokenKind::Keyword(Keyword::Struct) => self.parse_struct(),
+			TokenKind::Keyword(Keyword::Enum) => self.parse_enum(),
 			_ => self.parse_statement(),
 		}
 	}
@@ -93,7 +98,9 @@ impl<'tokens> Parser<'tokens> {
 			TokenKind::Keyword(Keyword::Fn | Keyword::Async) => self.parse_function(),
 			TokenKind::Keyword(Keyword::If) => self.parse_if(),
 			TokenKind::Keyword(Keyword::For) => self.parse_for(),
+			TokenKind::Keyword(Keyword::Match) => self.parse_match(),
 			TokenKind::Keyword(Keyword::Return) => self.parse_return(),
+			TokenKind::Keyword(Keyword::Slot) => self.parse_slot(),
 			TokenKind::Keyword(Keyword::Init | Keyword::Mount | Keyword::Cleanup) => {
 				self.parse_lifecycle_block()
 			}
@@ -144,6 +151,20 @@ impl<'tokens> Parser<'tokens> {
 			}
 		}
 		SyntaxNode::new(SyntaxKind::Block, children)
+	}
+
+	pub(super) fn begin_indented_block(&mut self, children: &mut Vec<SyntaxElement>) {
+		self.expect(children, TokenKind::Colon, "expected `:` before block");
+		self.expect(
+			children,
+			TokenKind::Newline,
+			"expected newline after block header",
+		);
+		self.expect(
+			children,
+			TokenKind::Indent,
+			"expected indented block body",
+		);
 	}
 
 	pub(super) fn finish_simple_line(&mut self, children: &mut Vec<SyntaxElement>) {
