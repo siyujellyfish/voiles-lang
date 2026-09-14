@@ -1,14 +1,12 @@
 # Voiles Component Model
 
-Status: `Draft` with accepted core semantics.
+Status: `Accepted v0.1 baseline`.
 
-This document defines component declaration, export, parameters, instance identity, lifecycle, slots and compiler reachability.
+此文件定義 component declaration/export/import、parameter/callback surface、instance identity/lifecycle、slot、module interaction 與 compiler reachability。
 
 ## 1. Explicit component declaration
 
-Status: `Accepted`.
-
-Reusable UI is declared explicitly with `component`.
+Reusable UI 使用顯式 `component`：
 
 ```voil
 component UserBtn(
@@ -29,65 +27,42 @@ component UserBtn(
 		std.p(count)
 ```
 
-The compiler does not infer whether an arbitrary `.voil` module is a component from render statements.
-
-```text
-fn
-	-> callable logic
-
-component
-	-> instantiable UI
-```
+`fn` = callable logic；`component` = instantiable UI。Compiler 不依 top-level render statement 猜 component。
 
 ## 2. Automatic component export
 
-Status: `Accepted`.
-
-Every top-level `component Name(...):` declaration is automatically part of the module component export surface. No explicit `export` keyword is required.
+所有 top-level component 自動 export：
 
 ```voil
-component UserBtn(text: String):
+component UserBtn(...):
 	...
 
-component IconBtn(icon: String):
+component IconBtn(...):
 	...
 ```
 
-Both declarations are automatically exportable and their names must be unique within the module.
+不需要 `export component`。同 module component name 必須唯一。
 
-Single import:
+Single/multi import：
 
 ```voil
 import UserBtn from "./buttons.voil"
-```
-
-Multiple component import:
-
-```voil
 import UserBtn, IconBtn from "./buttons.voil"
 ```
 
-Each imported name resolves the component declaration with the same name.
-
-Component import alias remains Draft. Current recommendation:
+Alias 使用 item-local `as`：
 
 ```voil
 import UserBtn as PrimaryBtn, IconBtn as SmallIconBtn from "./buttons.voil"
 ```
 
-Mixed aliasing would also be valid if accepted:
+可混用 aliased/non-aliased items。
 
-```voil
-import UserBtn, IconBtn as SmallIconBtn from "./buttons.voil"
-```
-
-Non-component module/default/named/namespace import semantics remain a separate module-system decision.
+Component automatic export 不代表其他 module binding 自動 public；non-component symbol 必須 explicit `export`。
 
 ## 3. Component parameters
 
-Status: `Accepted`.
-
-Component parameters are immutable public input bindings declared in the component header.
+Component declaration header 是 public input surface：
 
 ```voil
 component UserCard(
@@ -98,221 +73,118 @@ component UserCard(
 	...
 ```
 
-Accepted semantics:
+Rules：
 
-- no default -> required parameter;
-- default present -> optional parameter;
-- component parameters are immutable inside the component;
-- component invocation is named-argument-only;
-- positional component arguments are compile errors;
-- defaults are evaluated independently for each component invocation;
-- parameter/default initialization is left-to-right;
-- a default may reference only parameters already initialized earlier in the parameter list.
+- no default -> required；
+- default -> optional；
+- parameter immutable；
+- component invocation named-only；
+- positional component arg compile error；
+- defaults 每個 new instance 獨立 evaluate；
+- parameter/default initialization left-to-right；
+- default 只能引用前面已初始化 parameter。
 
-Valid:
-
-```voil
-UserCard(
-	name="Alice"
-)
-```
-
-Invalid positional call:
+Valid：
 
 ```voil
-UserCard("Alice") # compile error
+UserCard(name="Alice")
 ```
 
-Invalid reassignment:
+Invalid：
 
 ```voil
-component UserBtn(text: String):
-	text = "changed" # compile error
+UserCard("Alice")
 ```
 
-Mutable component-owned data must be explicit `state`:
+Mutable copy 必須 explicit `state`：
 
 ```voil
 component Input(value: String):
 	state current = value
-
-	fn clear():
-		current = ""
 ```
 
-`state current = value` reads the parameter when the component instance is created. Later updates to `value` do not implicitly reset `current`.
+後續 `value` prop update 不自動 reset `current`。
 
-Per-invocation defaults:
+## 4. Callback parameters
+
+Function type syntax：
 
 ```voil
-component Panel(id: String = create_id()):
-	...
-
-Panel()
-Panel()
+fn(Int, String) -> Bool
 ```
 
-Each invocation evaluates `create_id()` independently.
-
-Defaults may reference earlier parameters:
+Component callback：
 
 ```voil
-component Avatar(
-	name: String,
-	alt: String = name
+component Button(
+	text: String,
+	onclick: fn() -> Void
+):
+	std.button(onclick=onclick)
+```
+
+Optional callback：
+
+```voil
+component Button(
+	onclick: (fn() -> Void)? = none
 ):
 	...
 ```
 
-A later parameter is not visible to an earlier default:
+Handler value 必須 type-compatible。Async handler 只有 parameter signature 明確允許 async callback 時才合法；async failure 不可被 runtime silently discard。
 
-```voil
-component Avatar(
-	alt: String = name, # compile error
-	name: String
-):
-	...
-```
+Native DOM event callback type 由 `@voiles/html-base` metadata 提供，例如 `MouseEvent`, `InputEvent`, `KeyboardEvent`, `SubmitEvent`, `FocusEvent`, `PointerEvent`。
 
-Component calls use named `=` arguments. The broader function/struct named-argument grammar is tracked separately.
+## 5. Component instance identity
 
-## 4. Component instance identity
-
-Status: `Accepted`.
-
-Every component invocation identity creates a new component instance scope when that identity first becomes active.
+每個 component invocation identity 第一次 active 時建立獨立 instance scope。
 
 ```voil
 UserBtn(text="A")
 UserBtn(text="B")
 ```
 
-If the component owns:
+Component-local `state` 不共享。Component instance 同時是 ordinary `.voil` dependency 的 importer scope。
 
-```voil
-state count = 0
-```
+Same component instance 中 same resolved module path -> same dependency module instance。
 
-then each invocation identity owns an independent `count` cell.
-
-```text
-UserBtn A
-	└─ count A
-
-UserBtn B
-	└─ count B
-```
-
-A component instance is also an importer scope for ordinary scoped `.voil` dependencies. Different component instances therefore receive different ordinary stateful dependency module instances unless the dependency uses `shared`.
-
-Within one component instance, importing the same resolved module path more than once still resolves to the same dependency module instance.
-
-### 4.1 Reactive parameter updates preserve identity
-
-Status: `Accepted`.
-
-Reactive changes to caller expressions update the immutable parameter values on the existing component instance. A parameter change alone does not destroy/recreate the component.
+### 5.1 Reactive parameter update preserves identity
 
 ```voil
 state name = "Alice"
-
-UserCard(
-	name=name
-)
-
+UserCard(name=name)
 name = "Bob"
 ```
 
-The same `UserCard` instance receives `"Bob"` while preserving component-local `state` and scoped dependency instances.
+同一 `UserCard` instance 接收新 parameter value；local state/dependencies 保留。Component-local initializer 不重跑。
 
-```text
-parameter update
-	-> same component instance
-	-> new immutable input value
-	-> existing local state preserved
-```
+### 5.2 Structural identity
 
-Component-local `state` initializers run only for a new component instance identity.
+非 repeated UI 由 compiled UI tree 中 stable structural invocation position 決定 identity。
 
-### 4.2 Structural identity and conditionals
+Conditional branch inactive -> branch-local instance unmount；re-entry -> new instance。
 
-Status: `Accepted`.
-
-Outside repeated UI, component identity is derived from the stable structural invocation position in the compiled UI structure.
-
-Conditional branches are lifetime boundaries.
-
-```voil
-if show_profile:
-	UserCard(
-		name=user.name
-	)
-```
-
-Conceptually:
-
-```text
-false -> true
-	-> create UserCard instance
-
-true -> false
-	-> unmount UserCard instance
-	-> release ordinary instance-local state/dependencies
-
-false -> true
-	-> create a new UserCard instance
-```
-
-Branch removal does not keep hidden component state alive by default.
-
-### 4.3 Keyed repeated UI
-
-Status: `Accepted`.
-
-Repeated UI that creates component instances must declare explicit iteration identity with `key`.
+### 5.3 Keyed repeated UI
 
 ```voil
 for user in users key user.id:
-	UserCard(
-		user=user
-	)
+	UserCard(user=user)
 ```
 
-Voiles does not silently use list position/index as component identity.
+- repeated UI 中建立 component 必須有 `key`；
+- key type `String | Int`；
+- same key reorder preserve instance；
+- removed/changed key destroys old identity；
+- new key creates new instance；
+- duplicate key runtime error；
+- 不用 implicit index identity。
 
-Therefore this is a compile error in v0.1:
+Ordinary algorithmic loop 不建立 component identity 時不要求 key。
 
-```voil
-for user in users:
-	UserCard(
-		user=user
-	) # compile error: repeated component UI requires key
-```
+## 6. Component lifecycle
 
-The key belongs to repeated iteration identity, not to the component parameter list.
-
-Reorder example:
-
-```text
-before: A B C
-after:  C A B
-```
-
-If keys remain `A`, `B`, and `C`, all component instances are preserved and only rendered ordering changes.
-
-If a key disappears, its instance is unmounted. A new key creates a new instance. A changed key removes the old identity and creates a new one.
-
-For v0.1, accepted key types are `String` and `Int`.
-
-Duplicate keys within one repeated UI evaluation are invalid. Because uniqueness may depend on runtime data, the runtime must detect duplicates and fail deterministically rather than guessing which instance to reuse.
-
-Ordinary algorithmic loops that do not instantiate repeated UI components do not require a key.
-
-## 5. Component lifecycle and resource cleanup
-
-Status: `Accepted` for v0.1.
-
-Voiles uses a paired `mount` / nested `cleanup` lifecycle for resources owned by a component instance.
+Component-owned resource：
 
 ```voil
 component Clock():
@@ -328,96 +200,47 @@ component Clock():
 	std.p(now)
 ```
 
-Accepted semantics:
+Semantics：
 
-- `mount:` runs exactly once when a new component instance becomes mounted/active;
-- reactive parameter updates do not rerun `mount:`;
-- ordinary component-local `state` updates do not rerun `mount:`;
-- keyed reorder with an unchanged key preserves the instance and does not rerun `mount:`;
-- `cleanup:` runs exactly once when that mounted component instance is unmounted;
-- `cleanup:` may capture lexical bindings declared in its enclosing `mount:` block;
-- `cleanup:` is legal only inside a `mount:` block;
-- v0.1 does not introduce reactive `effect`, dependency arrays or automatic rerun semantics.
+- `mount:` once per new mounted instance；
+- prop/state update 不重跑；
+- same-key reorder 不 cleanup/remount；
+- `cleanup:` only nested in `mount:`；
+- cleanup 可 capture mount locals；
+- unmount 時 cleanup once；
+- v0.1 沒有 reactive `effect` / dependency array。
 
-Resource example:
+Owned scoped module dependency 有自己的 `init:/cleanup:`，teardown 時 dependency modules post-order cleanup，再執行 component cleanup。
 
-```voil
-mount:
-	const subscription = store.subscribe(update)
+## 7. Component lexical / module state interaction
 
-	cleanup:
-		subscription.close()
-```
-
-The lexical relationship is intentional: the resource is created and destroyed in the same lifecycle block without forcing the resource handle into component `state`.
-
-Conditional lifetime follows component identity rules:
+`component ...:` 是 lexical + instance scope。
 
 ```voil
-if show_clock:
-	Clock()
-```
+state module_counter = 0
 
-```text
-false -> true
-	-> create instance
-	-> mount runs
-
-true -> false
-	-> cleanup runs
-	-> unmount instance
-
-false -> true
-	-> create new instance
-	-> mount runs again for the new instance
-```
-
-For keyed repeated UI:
-
-- reorder with the same key -> no cleanup/remount;
-- key removal -> cleanup then unmount;
-- key replacement/change -> cleanup old instance, then mount new instance;
-- new key -> mount new instance.
-
-Ordinary scoped `.voil` dependency modules have their own accepted `init:` / nested `cleanup:` lifecycle. When a component instance is unmounted, owned dependency modules are torn down recursively before the component's own `cleanup:` runs. Full scoped-module ownership semantics are defined in [`state-model.md`](./state-model.md).
-
-## 6. Scope inside and outside component blocks
-
-The `component ...:` block is a lexical and instance scope.
-
-```voil
-shared theme = "dark"
-const module_name = "button"
-
-component UserBtn(text: String):
-	const label = text
-	state count = 0
+component A():
+	state local = 0
 	...
 ```
 
-Current interpretation:
+- module-level `state` 合法，屬於 containing scoped module instance；
+- component-local `state` 屬於 component instance；
+- `shared` 仍只能 module top-level；
+- module-level state 不會因 module 中存在 component 就變成 per-component state。
 
-- `shared` is legal only at module top level and is application-global;
-- component-local `const` / `state` belong to the component instance scope;
-- ordinary module-level declarations outside `component` retain module lexical semantics.
+若需要 per-instance mutable state，宣告在 component block；若需要 application-global cell，使用 `shared`。
 
-Whether module-level mutable `state` should be permitted in a module that also declares components remains open. Component-local mutable state should normally be declared inside the component block so instance isolation is explicit.
+## 8. Children and slots
 
-## 7. Component children and slots
-
-Status: `Accepted` baseline.
-
-A component invocation opens child content with the normal `:` + indentation model.
+Default children：
 
 ```voil
 Card(title="Profile"):
 	std.p(user.name)
-	std.p(user.email)
 ```
 
-Ordinary child statements form default slot content.
-
-Default outlet:
+Callee outlet：
 
 ```voil
 component Card(title: String):
@@ -426,7 +249,7 @@ component Card(title: String):
 		slot
 ```
 
-Named outlets:
+Named slot：
 
 ```voil
 component Modal():
@@ -436,107 +259,111 @@ component Modal():
 		slot footer
 ```
 
-Caller-provided named content:
+Caller：
 
 ```voil
 Modal():
 	slot header:
 		std.h2("Confirm")
 
-	std.p("Delete this item?")
+	std.p("Content")
 
 	slot footer:
-		Button(text="Cancel")
-		Button(text="Delete")
+		Button(text="OK")
 ```
 
-`slot` is a compiler-level UI insertion point, not an ordinary function call.
+`slot` 是 compiler-level insertion point，不是 ordinary function call。
 
-### 7.1 Slot lexical scope
+### 8.1 Slot lexical scope
 
-Status: `Accepted`.
+Slot content 保留 caller lexical environment；callee 只決定 placement。
 
-Slot content preserves caller lexical scope.
+Caller-authored content 不會隱式取得 component locals；component 也不會透過 slot 取得 caller locals。
+
+### 8.2 Slot cardinality
+
+v0.1：
+
+- outlet optional；
+- default outlet 最多一個；
+- 每個 named outlet 最多一個；
+- caller 每個 named slot 最多 provision 一次；
+- duplicate outlet/provision compile error；
+- unknown named slot compile error；
+- callee 沒有 default outlet 卻傳 ordinary children compile error。
+
+### 8.3 Scoped slot Deferred
+
+Slot parameter/scoped-slot 不在 v0.1。
+
+例如未來可能考慮：
 
 ```voil
-const username = "Alice"
-
-Card():
-	std.p(username)
+List(items=users):
+	slot item(user):
+		std.p(user.name)
 ```
 
-`username` resolves where `Card()` is invoked, not where `component Card` is declared.
+但此 syntax/semantics 目前不成立。
 
-The component controls placement only. Caller slot content does not implicitly gain component-local bindings, and the component does not gain caller-local bindings through projection.
+### 8.4 UI value type Deferred
 
-A future slot-parameter/scoped-slot feature must explicitly define values crossing this boundary.
+v0.1 不定義 `Ui`/`Node`/`Slot` first-class value，不允許以一般 variable/function return 任意搬運 compiler UI tree。UI structure 先保持 compiler-lowered structural context。
 
-### 7.2 Slot cardinality
+## 9. Native HTML interaction
 
-Status: `Accepted` for v0.1.
+Native HTML 主要透過普通 alias：
 
-All slot outlets are optional by default.
+```voil
+import std from "@voiles/html-base"
+```
 
-A component declaration may contain:
+`std` 不是 reserved namespace。
 
-- at most one default `slot` outlet;
-- at most one outlet for each named slot.
+Block/container-level structural names可直接使用 block syntax；leaf/content-oriented element 使用 `std.*`。
 
-A component invocation may provide each named slot at most once.
+Structural block 可接受 named attributes：
 
-Compile errors:
+```voil
+section(
+	id="profile",
+	class="panel"
+):
+	std.h2("Profile")
+```
 
-- duplicate default/named outlets;
-- duplicate named-slot provisions;
-- unknown named slot supplied by caller;
-- ordinary/default children supplied when callee has no default outlet.
+Native event handler 的 exact type 來自 html-base metadata。
 
-One slot provision may contain any number of child UI statements.
+## 10. Unused component elimination
 
-Required slots, repeated projection/cloning and scoped-slot parameters are not part of the v0.1 baseline.
-
-## 8. Unused component elimination
-
-Status: `Accepted` compiler goal.
-
-A component unreachable from route/application entry points and reachable component/module references may be removed from production output.
+Unreachable component declaration 是 production DCE candidate：
 
 ```text
 route entrypoints
-	↓
-reachable imports/components
-	↓
-component dependency graph
-	↓
-codegen set
+-> reachable module/component symbols
+-> component dependency graph
+-> codegen set
 ```
 
-An imported component that is never invoked can also be removed when removal preserves module semantics.
+Unused component 本身不能建立 state、run mount 或 render output。
 
-Component-local initialization and lifecycle work occur only when the component is instantiated. Therefore an unused component declaration must not create component state, run `mount`, or create render output merely because its containing module exists.
+Whole module removal 另外受 module `init:`/export reachability 限制。因 observable top-level work 必須放在 `init:`，effect boundary 可被 compiler 明確追蹤。
 
-The compiler must not blindly remove an entire module solely because all component declarations are unused. Observable module-top-level side effects must be preserved unless effect analysis proves the module removable.
-
-## 9. Initial grammar sketch
-
-Descriptive only:
+## 11. Grammar baseline
 
 ```text
-componentDecl          := "component" PascalIdentifier parameters componentBlock
+componentDecl          := "component" PascalIdentifier componentParameters componentBlock
+componentParameters    := "(" componentParameterList? ")"
+componentParameter     := identifier typeAnnotation ("=" expression)?
 componentBlock         := ":" NEWLINE INDENT componentItem* DEDENT
 
-componentItem          := bindingDecl
-                       | functionDecl
-                       | controlFlow
-                       | structuralBlock
-                       | containerBlock
-                       | standardHtmlCall
-                       | componentCall
+componentItem          := statement
                        | slotOutlet
                        | mountBlock
 
 componentCall          := PascalIdentifier componentCallArguments childBlock?
 componentCallArguments := "(" namedArgumentList? ")"
+
 childBlock             := ":" NEWLINE INDENT childItem* DEDENT
 childItem              := namedSlotBlock | uiStatement
 namedSlotBlock         := "slot" identifier block
@@ -544,37 +371,34 @@ slotOutlet             := "slot" identifier?
 
 mountBlock             := "mount" block
 cleanupBlock           := "cleanup" block
-
 keyedForUi             := "for" identifier "in" expression "key" expression block
 
-componentImportDecl    := "import" componentImportItem ("," componentImportItem)* "from" stringLiteral
-componentImportItem    := PascalIdentifier componentAlias?
-componentAlias         := "as" PascalIdentifier
+componentImportItem    := PascalIdentifier importAlias?
+importAlias             := "as" identifier
 ```
 
-Semantic validation must:
+Semantic validation 必須：
 
-- reject `sharedDecl` outside module top level;
-- reject duplicate component declaration names;
-- reject positional component arguments, missing required parameters, duplicate named arguments and unknown parameter names;
-- evaluate component defaults per new instance, left-to-right, with references only to earlier parameters;
-- preserve existing component instances across reactive parameter updates;
-- reject component-instantiating repeated UI without explicit `key`;
-- type-check v0.1 keys as `String` or `Int`;
-- detect duplicate repeated-UI keys at runtime;
-- preserve caller lexical scope through slot lowering;
-- validate slot cardinality and unknown slots;
-- permit `cleanup:` only as a nested lifecycle block inside `mount:`;
-- preserve mount lexical bindings for cleanup capture;
-- ensure `mount:` executes once per mounted instance identity and component `cleanup:` once per unmount;
-- tear down owned ordinary scoped-module dependencies before running the owner component cleanup.
+- reject duplicate component names；
+- component arguments named-only；
+- reject missing/duplicate/unknown component args；
+- parameter defaults left-to-right；
+- preserve same instance on reactive prop update；
+- repeated component UI require key；
+- key type-check + duplicate runtime validation；
+- slot caller lexical scope preservation；
+- slot cardinality/unknown-slot validation；
+- mount/cleanup nesting/lifetime validation；
+- dependency module cleanup before component cleanup；
+- callback signature type-check；
+- owner-bound closure escape check。
 
-## 10. Remaining component decisions
+## 12. Remaining component-adjacent work
 
-- slot parameter / scoped-slot model, if needed;
-- slot content type model;
-- callback/event parameter typing;
-- component import alias syntax finalization (`as` currently recommended);
-- whether module-level mutable `state` is legal in modules that also declare components;
-- helper function/type export rules;
-- exact reachability/effect model used by tree-shaking.
+Core component v0.1 semantics 已定。後續 implementation/prototype work：
+
+- exact native event metadata generation；
+- async callback ABI；
+- HMR component compatibility fingerprint；
+- CSS/style scoping design；
+- scoped slot / UI value model 僅在後續有 concrete use case 時重新開啟。
