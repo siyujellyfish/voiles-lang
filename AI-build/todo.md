@@ -2,9 +2,48 @@
 
 ## Current phase
 
-`v0.1 language baseline accepted; compiler implementation not started.`
+`v0.1 language baseline accepted; compiler bootstrap implementation started.`
 
-本 branch 仍是 `planning/syntax-spec`。開始 compiler/runtime/Vite 實作前必須建立新的 implementation branch；任何 merge 到 `main` 都使用 squash commit。
+Current branch: `implementation/compiler-bootstrap`.
+
+任何 merge 到 `main` 都使用 squash commit；未經明確授權不合併 `main`。
+
+## Active — Milestone 0A lexer bootstrap
+
+- [x] Create implementation branch from `planning/syntax-spec`.
+- [x] Initialize Rust 2024 virtual workspace with Cargo resolver 3.
+- [x] Add `crates/voiles-lexer` with zero third-party dependencies.
+- [x] Add byte source `Span` model.
+- [x] Add stable lexical `Diagnostic` model.
+- [x] Add keyword/operator/trivia token model.
+- [x] Preserve whitespace/comment/non-structural physical line breaks for lossless CST handoff.
+- [x] Implement Python-style indentation stack and synthetic `INDENT` / `DEDENT`.
+- [x] Implement alternate-column tabs/spaces ambiguity diagnostics.
+- [x] Implement bracket continuation for `()`, `[]`, `{}`.
+- [x] Implement synthetic final logical `NEWLINE` + EOF dedent behavior.
+- [x] Implement initial identifier, decimal number, string, punctuation/operator lexing.
+- [x] Implement delimiter mismatch/unclosed diagnostics.
+- [x] Author lexer unit tests for indentation, blank/comment lines, continuation, EOF, tab ambiguity, invalid dedent, trivia preservation, unclosed delimiter.
+- [ ] Run `cargo check --workspace` in a Rust-capable environment.
+- [ ] Run `cargo test --workspace` in a Rust-capable environment.
+- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings` in a Rust-capable environment.
+- [ ] Fix any compiler/test/clippy failures before beginning parser implementation.
+
+Verification note: the current execution container had no Rust toolchain and external DNS blocked rustup installation. The Rust source is therefore written/reviewed but not yet toolchain-verified.
+
+## Next — Milestone 0B lossless CST/parser
+
+Do not begin until the Milestone 0A verification commands pass.
+
+- [ ] Create `crates/voiles-syntax` only after lexer verification.
+- [ ] Parse module/items while retaining lexer trivia/source spans.
+- [ ] Parse bindings, imports/exports, `fn`, component declarations/calls.
+- [ ] Parse accepted expression precedence and named/positional call rules.
+- [ ] Parse `if/else`, `for/in/key`, struct/enum/match baseline.
+- [ ] Parse structural HTML blocks and attributes.
+- [ ] Parse `mount/init/cleanup` lifecycle blocks.
+- [ ] Parse slot outlet/provision syntax.
+- [ ] Define deterministic recovery tests for malformed indentation/incomplete blocks.
 
 ## Resolved — lexical / parser baseline
 
@@ -198,15 +237,10 @@ Native CSS compatibility remains priority; do not start a custom CSS DSL without
 - [ ] SSR-only syntax.
 - [ ] Ecosystem/package policy finalization: project-root alias, Voiles package publication/metadata, final browser target, final Vite plugin contract.
 
-## Compiler implementation gate
+## Branch / merge gate
 
-Language P0 design is now sufficiently specified to begin a parser/compiler prototype **after explicit authorization**.
-
-When implementation begins:
-
-- create a new implementation branch;
-- add/update `AI-build/compiler.md`, `type-system.md`, `routing.md`, `runtime.md`, `security.md`, `known-issues.md` as implementation contracts;
-- consult official documentation for every external package before selecting/using its version;
-- use versions compatible with the project and current official releases;
+- compiler implementation is active only on a dedicated implementation branch;
+- consult official documentation before adding every external package/dependency;
+- use current project-compatible dependency versions;
 - do not merge to `main` without explicit authorization;
 - any merge to `main` must use squash commit.
