@@ -42,10 +42,12 @@ fn keeps_lexical_indentation_error_and_following_source() {
 	let source = "if ready:\n\tstate a = 1\n    state b = 2\nstate c = 3\n";
 	let parsed = parse(source);
 
-	assert!(parsed
-		.diagnostics
-		.iter()
-		.any(|diagnostic| diagnostic.code == "VLEX001"));
+	assert!(
+		parsed
+			.diagnostics
+			.iter()
+			.any(|diagnostic| diagnostic.code == "VLEX001")
+	);
 	assert_eq!(parsed.root.source_text(source), source);
 	assert!(parsed.root.descendant_count(SyntaxKind::BindingDecl) >= 2);
 }
