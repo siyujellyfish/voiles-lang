@@ -194,17 +194,13 @@ fn infix_binding_power(kind: TokenKind) -> Option<(u8, u8, SyntaxKind)> {
 		| TokenKind::SlashEqual
 		| TokenKind::PercentEqual => (1, 1, SyntaxKind::AssignmentExpr),
 		TokenKind::Keyword(Keyword::Or) | TokenKind::OrOr => (3, 4, SyntaxKind::BinaryExpr),
-		TokenKind::Keyword(Keyword::And) | TokenKind::AndAnd => {
-			(5, 6, SyntaxKind::BinaryExpr)
-		}
+		TokenKind::Keyword(Keyword::And) | TokenKind::AndAnd => (5, 6, SyntaxKind::BinaryExpr),
 		TokenKind::EqualEqual | TokenKind::BangEqual => (7, 8, SyntaxKind::BinaryExpr),
 		TokenKind::Less | TokenKind::LessEqual | TokenKind::Greater | TokenKind::GreaterEqual => {
 			(9, 10, SyntaxKind::BinaryExpr)
 		}
 		TokenKind::Plus | TokenKind::Minus => (11, 12, SyntaxKind::BinaryExpr),
-		TokenKind::Star | TokenKind::Slash | TokenKind::Percent => {
-			(13, 14, SyntaxKind::BinaryExpr)
-		}
+		TokenKind::Star | TokenKind::Slash | TokenKind::Percent => (13, 14, SyntaxKind::BinaryExpr),
 		_ => return None,
 	};
 	Some(result)
