@@ -122,11 +122,10 @@ impl<'source> Resolver<'source> {
 			if matches!(
 				child.kind,
 				SyntaxKind::ImportItem | SyntaxKind::NamespaceImport
-			) {
-				if let Some(token) = last_identifier(child) {
-					let name = self.text(token).to_owned();
-					self.declare(scope, name, SymbolKind::Import, token.span);
-				}
+			) && let Some(token) = last_identifier(child)
+			{
+				let name = self.text(token).to_owned();
+				self.declare(scope, name, SymbolKind::Import, token.span);
 			}
 		}
 	}
@@ -434,10 +433,10 @@ impl<'source> Resolver<'source> {
 			SyntaxKind::NameExpr => {}
 			SyntaxKind::CallExpr => {
 				let mut children = node.child_nodes();
-				if let Some(callee) = children.next() {
-					if callee.kind != SyntaxKind::NameExpr {
-						self.resolve_expression(callee, scope);
-					}
+				if let Some(callee) = children.next()
+					&& callee.kind != SyntaxKind::NameExpr
+				{
+					self.resolve_expression(callee, scope);
 				}
 				for child in children {
 					self.resolve_expression(child, scope);
@@ -475,12 +474,11 @@ impl<'source> Resolver<'source> {
 			let mut children = node.child_nodes();
 			if let Some(left) = children.next() {
 				let resolved = self.resolve_expression(left, scope);
-				if left.kind == SyntaxKind::NameExpr {
-					if let Some(symbol) = resolved {
-						if !self.module.symbols[symbol.0].is_mutable() {
-							self.error("VHIR004", "cannot assign to immutable binding", left.span);
-						}
-					}
+				if left.kind == SyntaxKind::NameExpr
+					&& let Some(symbol) = resolved
+					&& !self.module.symbols[symbol.0].is_mutable()
+				{
+					self.error("VHIR004", "cannot assign to immutable binding", left.span);
 				}
 			}
 			for child in children {
@@ -531,14 +529,13 @@ impl<'source> Resolver<'source> {
 			if let Some(symbol) = self.states[scope.0].declared.get(name) {
 				return Lookup::Resolved(*symbol);
 			}
-			if let Some(pending) = self.states[scope.0].pending.get(name) {
-				if let Some(declaration) = pending
+			if let Some(pending) = self.states[scope.0].pending.get(name)
+				&& let Some(declaration) = pending
 					.iter()
 					.filter(|decl| reference_start < decl.activation)
 					.min_by_key(|decl| decl.activation)
-				{
-					return Lookup::UseBefore(declaration.span);
-				}
+			{
+				return Lookup::UseBefore(declaration.span);
 			}
 			let Some(parent) = self.scope(scope).parent else {
 				return Lookup::Missing;
@@ -645,10 +642,9 @@ impl<'source> Resolver<'source> {
 					if matches!(
 						child.kind,
 						SyntaxKind::ImportItem | SyntaxKind::NamespaceImport
-					) {
-						if let Some(token) = last_identifier(child) {
-							self.add_pending(scope, token, node.span.end);
-						}
+					) && let Some(token) = last_identifier(child)
+					{
+						self.add_pending(scope, token, node.span.end);
 					}
 				}
 			}
