@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod ast;
 mod kind;
 #[path = "parser/mod.rs"]
 mod parser;
