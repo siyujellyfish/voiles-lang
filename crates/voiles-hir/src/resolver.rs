@@ -456,8 +456,7 @@ impl<'source> Resolver<'source> {
 						| SyntaxKind::NamedArgument
 						| SyntaxKind::PositionalArgument
 						| SyntaxKind::KeyClause
-				)
-			{
+				) {
 				self.resolve_expression(child, scope);
 			}
 		}
