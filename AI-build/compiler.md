@@ -2,7 +2,7 @@
 
 Status: `Implementation started`.
 
-Branch: `implementation/compiler-bootstrap`
+Branch: `implementation/lossless-cst-parser`
 
 ## 1. Toolchain baseline
 
@@ -26,8 +26,8 @@ Current implementation intentionally uses no third-party crates. External depend
 Initial crate direction:
 
 ```text
-crates/voiles-lexer      # active
-crates/voiles-syntax     # next: CST/parser
+crates/voiles-lexer      # active, Milestone 0A verified
+crates/voiles-syntax     # active, Milestone 0B parser/CST
 crates/voiles-hir        # later
 crates/voiles-types      # later
 crates/voiles-lowering   # later
@@ -39,7 +39,7 @@ Only crates needed by the current milestone should be created.
 
 ## 3. Milestone 0A — lexer
 
-Current implementation target:
+Implemented contract:
 
 - UTF-8 source accepted as Rust `&str`;
 - byte-offset `Span` for every token/diagnostic;
@@ -75,27 +75,27 @@ Source bytes must be reconstructable from source-backed tokens plus synthetic st
 
 `LineBreak` exists specifically so blank lines and continuation newlines can remain lossless without pretending they are parser-significant `Newline` tokens.
 
-## 5. Parser handoff contract
+## 5. Milestone 0B — lossless CST/parser
 
-The next parser crate should consume lexer output without re-deriving indentation. Parser recovery may continue after a lexer diagnostic, but must not reinterpret invalid indentation as valid source silently.
+Current implementation on `implementation/lossless-cst-parser` adds `crates/voiles-syntax` without third-party dependencies.
 
-First parser slice should cover:
+Implemented parser/CST surface:
 
-```text
-module
-binding declarations
-fn declarations
-imports / exports
-basic expressions + accepted precedence
-if / else
-for / in / key
-component declaration/call
-structural blocks
-mount/init/cleanup
-slot syntax
-```
+- lossless `SyntaxNode` / `SyntaxElement` tree retaining lexer tokens, trivia and source spans;
+- source round-trip reconstruction from CST tokens;
+- module/items, bindings, imports/exports, namespace imports and `extern import`;
+- `fn` / `async fn`, typed/default parameters and return types;
+- Pratt expression parser with accepted precedence, postfix calls/member/index/`?`, assignment and named/positional argument ordering;
+- `if/else`, `for/in/key`, `return` and lifecycle blocks;
+- `component`, child blocks, structural UI blocks and `slot` syntax;
+- `struct`, generic `enum`, payload cases, `match` arms and patterns;
+- typed route `param name: Type` declarations;
+- deterministic error nodes and line/block recovery while retaining source tokens;
+- CST descendant count/span helpers used by parser/tooling tests.
 
-The parser should produce a lossless CST before semantic resolution begins.
+Parser responsibility remains syntactic only. Name/component/slot resolution, scope legality, component API validation, type checking and HTML metadata validation stay in later HIR/type-checking stages.
+
+Reserved keywords remain lexer keywords and are not accepted as ordinary identifiers. Parser fixtures must therefore use non-keyword names; for example, a match function parameter uses `status` rather than the reserved binding keyword `state`.
 
 ## 6. Verification gate
 
@@ -110,15 +110,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 Milestone 0A lexer code was verified successfully on GitHub Actions run `34813462150` at commit `7b7485fb035e870e0816306dc2c113f04289a2df`. The run completed all four gates successfully, including the lexer unit-test suite.
 
-The local execution container used during implementation still has no Rust toolchain and external DNS prevented installing one through rustup. GitHub Actions is therefore the current executable verification environment for this branch.
+Milestone 0B verification is in progress on `implementation/lossless-cst-parser`. Prior runs have confirmed parser compilation and most parser tests; the final branch head must pass all four gates before 0B is considered verified.
+
+The local execution container used during implementation still has no Rust toolchain. GitHub Actions is therefore the current executable verification environment for this branch.
 
 Any later implementation commit must keep the same CI gates green before the branch is considered verified.
 
-## 7. Non-goals for this bootstrap
+## 7. Non-goals for the current parser bootstrap
 
-Not implemented in the current lexer slice:
+Not implemented in Milestone 0B:
 
-- CST/parser;
+- syntax AST facade beyond the raw lossless CST;
 - semantic name resolution;
 - type checking;
 - reactive dependency lowering;
