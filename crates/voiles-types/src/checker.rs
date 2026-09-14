@@ -507,8 +507,7 @@ impl Checker<'_> {
 					|| matches!(
 						operand,
 						Type::Builtin(BuiltinType::Int | BuiltinType::Float, ref args) if args.is_empty()
-					)
-				{
+					) {
 					operand
 				} else {
 					self.error(
