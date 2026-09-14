@@ -76,7 +76,7 @@ fn parses_component_slots_and_child_blocks() {
 
 #[test]
 fn parses_struct_enum_and_match_patterns() {
-	let source = "export struct User:\n\tid: Int\n\tname: String\n\tnickname: String? = none\n\nexport enum LoadState<T>:\n\tidle\n\tready(T)\n\tfailed(Error)\n\nfn render(state: LoadState<String>):\n\tmatch state:\n\t\tready(data):\n\t\t\tshow(data)\n\t\tfailed(error):\n\t\t\tshow(error)\n\t\t_:\n\t\t\tshow_empty()\n";
+	let source = "export struct User:\n\tid: Int\n\tname: String\n\tnickname: String? = none\n\nexport enum LoadState<T>:\n\tidle\n\tready(T)\n\tfailed(Error)\n\nfn render(status: LoadState<String>):\n\tmatch status:\n\t\tready(data):\n\t\t\tshow(data)\n\t\tfailed(error):\n\t\t\tshow(error)\n\t\t_:\n\t\t\tshow_empty()\n";
 	let parsed = parse(source);
 
 	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
