@@ -161,11 +161,7 @@ impl<'tokens> Parser<'tokens> {
 			TokenKind::Newline,
 			"expected newline after block header",
 		);
-		self.expect(
-			children,
-			TokenKind::Indent,
-			"expected indented block body",
-		);
+		self.expect(children, TokenKind::Indent, "expected indented block body");
 	}
 
 	pub(super) fn finish_simple_line(&mut self, children: &mut Vec<SyntaxElement>) {
