@@ -35,6 +35,8 @@ pub enum SyntaxKind {
 	LifecycleBlock,
 	SlotStmt,
 	StructuralBlock,
+	ContainerBlock,
+	ComponentChildBlock,
 	UiChildBlockStmt,
 	ExprStmt,
 	NameExpr,
