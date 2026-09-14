@@ -60,6 +60,51 @@ fn parses_if_for_key_and_lifecycle_blocks() {
 }
 
 #[test]
+fn parses_component_slots_and_child_blocks() {
+	let source = "component Card(title: String):\n\tcontainer:\n\t\tstd.h2(title)\n\t\tslot\n\nCard(title=\"Profile\"):\n\tslot header:\n\t\tstd.h3(\"Header\")\n\tstd.p(\"Body\")\n";
+	let parsed = parse(source);
+
+	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::ComponentDecl), 1);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::SlotStmt), 2);
+	assert_eq!(
+		parsed.root.descendant_count(SyntaxKind::UiChildBlockStmt),
+		3
+	);
+	assert_eq!(parsed.root.source_text(source), source);
+}
+
+#[test]
+fn parses_struct_enum_and_match_patterns() {
+	let source = "export struct User:\n\tid: Int\n\tname: String\n\tnickname: String? = none\n\nexport enum LoadState<T>:\n\tidle\n\tready(T)\n\tfailed(Error)\n\nfn render(state: LoadState<String>):\n\tmatch state:\n\t\tready(data):\n\t\t\tshow(data)\n\t\tfailed(error):\n\t\t\tshow(error)\n\t\t_:\n\t\t\tshow_empty()\n";
+	let parsed = parse(source);
+
+	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::StructDecl), 1);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::StructField), 3);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::EnumDecl), 1);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::EnumCase), 3);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::MatchStmt), 1);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::MatchArm), 3);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::Pattern), 6);
+	assert_eq!(parsed.root.source_text(source), source);
+}
+
+#[test]
+fn parses_structural_block_attributes_as_ui_child_block() {
+	let source = "section(id=\"profile\", class=\"panel\"):\n\tstd.h2(\"Profile\")\n";
+	let parsed = parse(source);
+
+	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+	assert_eq!(
+		parsed.root.descendant_count(SyntaxKind::UiChildBlockStmt),
+		1
+	);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::NamedArgument), 2);
+	assert_eq!(parsed.root.source_text(source), source);
+}
+
+#[test]
 fn rejects_positional_argument_after_named_argument() {
 	let parsed = parse("call(a=1, 2)\n");
 
