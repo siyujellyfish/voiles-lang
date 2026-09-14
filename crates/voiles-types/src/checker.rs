@@ -1,6 +1,4 @@
-use voiles_hir::{
-	BuiltinType, GlobalSymbolId, HirProject, ModuleId, ProjectModule, SymbolId, TypeTarget,
-};
+use voiles_hir::{BuiltinType, GlobalSymbolId, HirProject, ModuleId, SymbolId, TypeTarget};
 use voiles_lexer::{Keyword, Span, Token, TokenKind};
 use voiles_syntax::{Parse, SyntaxKind, SyntaxNode, ast::token_text};
 
@@ -229,11 +227,20 @@ impl Checker<'_> {
 		let Some(symbol) = self.symbol_at_span(module, name.span) else {
 			return;
 		};
-		let annotation = self.first_type_child(node).map(|node| self.resolve_type(module, node));
-		let initializer = first_expression_child(node).map(|node| self.infer_expression(module, node));
+		let annotation = self
+			.first_type_child(node)
+			.map(|node| self.resolve_type(module, node));
+		let initializer =
+			first_expression_child(node).map(|node| self.infer_expression(module, node));
 		match (annotation, initializer) {
 			(Some(expected), Some(actual)) => {
-				self.expect_assignable(module, &expected, &actual, node.span, "binding initializer");
+				self.expect_assignable(
+					module,
+					&expected,
+					&actual,
+					node.span,
+					"binding initializer",
+				);
 				self.set_symbol_type(module, symbol, expected);
 			}
 			(Some(expected), None) => self.set_symbol_type(module, symbol, expected),
@@ -441,8 +448,7 @@ impl Checker<'_> {
 		}
 	}
 
-	fn infer_literal(&self, module: ModuleId, node: &SyntaxNode) -> Type {
-		let _ = module;
+	fn infer_literal(&self, _module: ModuleId, node: &SyntaxNode) -> Type {
 		let Some(token) = node.direct_tokens().find(|token| {
 			matches!(
 				token.kind,
@@ -474,7 +480,9 @@ impl Checker<'_> {
 			.iter()
 			.find(|reference| reference.span == token.span)
 			.and_then(|reference| reference.resolved);
-		resolved.map_or(Type::Unknown, |symbol| self.symbol_type(module, symbol).clone())
+		resolved.map_or(Type::Unknown, |symbol| {
+			self.symbol_type(module, symbol).clone()
+		})
 	}
 
 	fn infer_unary(&mut self, module: ModuleId, node: &SyntaxNode) -> Type {
@@ -503,7 +511,12 @@ impl Checker<'_> {
 				{
 					operand
 				} else {
-					self.error(module, "VTYPE001", "numeric unary operand required", node.span);
+					self.error(
+						module,
+						"VTYPE001",
+						"numeric unary operand required",
+						node.span,
+					);
 					Type::Error
 				}
 			}
@@ -513,7 +526,9 @@ impl Checker<'_> {
 	}
 
 	fn infer_binary(&mut self, module: ModuleId, node: &SyntaxNode) -> Type {
-		let mut expressions = node.child_nodes().filter(|child| is_expression_kind(child.kind));
+		let mut expressions = node
+			.child_nodes()
+			.filter(|child| is_expression_kind(child.kind));
 		let Some(left_node) = expressions.next() else {
 			return Type::Unknown;
 		};
@@ -524,25 +539,56 @@ impl Checker<'_> {
 		let right = self.infer_expression(module, right_node);
 		let operator = significant_operator(node);
 		match operator {
-			Some(TokenKind::Keyword(Keyword::And | Keyword::Or) | TokenKind::AndAnd | TokenKind::OrOr) => {
+			Some(
+				TokenKind::Keyword(Keyword::And | Keyword::Or)
+				| TokenKind::AndAnd
+				| TokenKind::OrOr,
+			) => {
 				let boolean = Type::builtin(BuiltinType::Bool);
 				self.expect_assignable(module, &boolean, &left, left_node.span, "logical operand");
-				self.expect_assignable(module, &boolean, &right, right_node.span, "logical operand");
+				self.expect_assignable(
+					module,
+					&boolean,
+					&right,
+					right_node.span,
+					"logical operand",
+				);
 				boolean
 			}
 			Some(TokenKind::EqualEqual | TokenKind::BangEqual) => {
 				if !is_assignable(&left, &right) && !is_assignable(&right, &left) {
-					self.error(module, "VTYPE001", "incompatible equality operands", node.span);
+					self.error(
+						module,
+						"VTYPE001",
+						"incompatible equality operands",
+						node.span,
+					);
 				}
 				Type::builtin(BuiltinType::Bool)
 			}
-			Some(TokenKind::Less | TokenKind::LessEqual | TokenKind::Greater | TokenKind::GreaterEqual) => {
+			Some(
+				TokenKind::Less
+				| TokenKind::LessEqual
+				| TokenKind::Greater
+				| TokenKind::GreaterEqual,
+			) => {
 				if !same_numeric_type(&left, &right) {
-					self.error(module, "VTYPE001", "comparison operands must share a numeric type", node.span);
+					self.error(
+						module,
+						"VTYPE001",
+						"comparison operands must share a numeric type",
+						node.span,
+					);
 				}
 				Type::builtin(BuiltinType::Bool)
 			}
-			Some(TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash | TokenKind::Percent) => {
+			Some(
+				TokenKind::Plus
+				| TokenKind::Minus
+				| TokenKind::Star
+				| TokenKind::Slash
+				| TokenKind::Percent,
+			) => {
 				if same_numeric_type(&left, &right) {
 					left
 				} else if operator == Some(TokenKind::Plus)
@@ -553,7 +599,12 @@ impl Checker<'_> {
 				} else if left.is_unknown_or_error() || right.is_unknown_or_error() {
 					Type::Unknown
 				} else {
-					self.error(module, "VTYPE001", "invalid arithmetic operand types", node.span);
+					self.error(
+						module,
+						"VTYPE001",
+						"invalid arithmetic operand types",
+						node.span,
+					);
 					Type::Error
 				}
 			}
@@ -562,7 +613,9 @@ impl Checker<'_> {
 	}
 
 	fn infer_assignment(&mut self, module: ModuleId, node: &SyntaxNode) -> Type {
-		let mut expressions = node.child_nodes().filter(|child| is_expression_kind(child.kind));
+		let mut expressions = node
+			.child_nodes()
+			.filter(|child| is_expression_kind(child.kind));
 		let Some(left_node) = expressions.next() else {
 			return Type::Unknown;
 		};
@@ -591,7 +644,12 @@ impl Checker<'_> {
 				}
 			}
 			if !callee_node_is_unknown(self, module, callee_node) {
-				self.error(module, "VTYPE005", "value is not callable", callee_node.span);
+				self.error(
+					module,
+					"VTYPE005",
+					"value is not callable",
+					callee_node.span,
+				);
 			}
 			return Type::Unknown;
 		};
@@ -615,7 +673,12 @@ impl Checker<'_> {
 					};
 					let actual = self.infer_expression(module, expression);
 					if next_positional >= signature.parameters.len() {
-						self.error(module, "VTYPE002", "too many positional arguments", argument.span);
+						self.error(
+							module,
+							"VTYPE002",
+							"too many positional arguments",
+							argument.span,
+						);
 						continue;
 					}
 					let parameter = &signature.parameters[next_positional];
@@ -687,7 +750,9 @@ impl Checker<'_> {
 	}
 
 	fn infer_index(&mut self, module: ModuleId, node: &SyntaxNode) -> Type {
-		let mut expressions = node.child_nodes().filter(|child| is_expression_kind(child.kind));
+		let mut expressions = node
+			.child_nodes()
+			.filter(|child| is_expression_kind(child.kind));
 		let Some(target_node) = expressions.next() else {
 			return Type::Unknown;
 		};
@@ -731,7 +796,12 @@ impl Checker<'_> {
 			}
 			Type::Unknown | Type::Error => Type::Unknown,
 			_ => {
-				self.error(module, "VTYPE001", "`?` requires Result or Option", node.span);
+				self.error(
+					module,
+					"VTYPE001",
+					"`?` requires Result or Option",
+					node.span,
+				);
 				Type::Error
 			}
 		}
@@ -915,7 +985,8 @@ fn callee_node_is_unknown(checker: &Checker<'_>, module: ModuleId, node: &Syntax
 			.iter()
 			.find(|reference| reference.span == token.span)
 			.and_then(|reference| reference.resolved);
-		return resolved.is_none_or(|symbol| matches!(checker.symbol_type(module, symbol), Type::Unknown));
+		return resolved
+			.is_none_or(|symbol| matches!(checker.symbol_type(module, symbol), Type::Unknown));
 	}
 	true
 }
@@ -947,7 +1018,8 @@ fn first_identifier(node: &SyntaxNode) -> Option<Token> {
 }
 
 fn first_expression_child(node: &SyntaxNode) -> Option<&SyntaxNode> {
-	node.child_nodes().find(|child| is_expression_kind(child.kind))
+	node.child_nodes()
+		.find(|child| is_expression_kind(child.kind))
 }
 
 fn significant_operator(node: &SyntaxNode) -> Option<TokenKind> {
