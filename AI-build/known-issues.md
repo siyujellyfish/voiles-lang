@@ -19,17 +19,18 @@ Current known limitations:
 
 ## Verification status
 
-The implementation environment used for this bootstrap did not have Rust installed, and external DNS prevented installing official stable Rust through rustup. Therefore the new Rust source has not yet been compiled or executed in this session.
+The local implementation container did not have Rust installed and external DNS prevented installing official stable Rust through rustup. Executable verification was therefore performed on GitHub Actions.
 
-Before merge/progression beyond lexer bootstrap, run:
+Run `34813462150` at commit `7b7485fb035e870e0816306dc2c113f04289a2df` passed:
 
 ```text
+cargo fmt --all -- --check
 cargo check --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Any compiler error or failed test from that verification is a blocking issue and must be corrected on the implementation branch.
+The lexer unit-test suite passed in that run. Subsequent changes must keep the same CI gates green; a later failure is blocking even if this recorded run was successful.
 
 ## Future prototype risks
 
