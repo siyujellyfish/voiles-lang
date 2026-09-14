@@ -5,10 +5,10 @@ mod project;
 mod resolver;
 
 pub use model::{
-	BuiltinType, Capture, DependencyEdge, DependencyKind, ExportedSymbol, GlobalSymbolId, HirModule,
-	HirProject, HirProjectResult, HirResult, ImportBinding, ImportBindingKind, ModuleId, ModuleSource,
-	ModuleSourceId, ProjectDiagnostic, ProjectModule, Reference, Scope, ScopeId, ScopeKind, Symbol,
-	SymbolId, SymbolKind, TypeReference, TypeTarget,
+	BuiltinType, Capture, DependencyEdge, DependencyKind, ExportedSymbol, GlobalSymbolId,
+	HirModule, HirProject, HirProjectResult, HirResult, ImportBinding, ImportBindingKind, ModuleId,
+	ModuleSource, ModuleSourceId, ProjectDiagnostic, ProjectModule, Reference, Scope, ScopeId,
+	ScopeKind, Symbol, SymbolId, SymbolKind, TypeReference, TypeTarget,
 };
 pub use project::resolve_project;
 
