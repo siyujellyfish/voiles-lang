@@ -111,7 +111,11 @@ pub fn resolve_project(sources: Vec<ModuleSource>) -> HirProjectResult {
 	}
 }
 
-fn collect_exports(module_id: ModuleId, module: &ProjectModule, parsed: &Parse) -> Vec<ExportedSymbol> {
+fn collect_exports(
+	module_id: ModuleId,
+	module: &ProjectModule,
+	parsed: &Parse,
+) -> Vec<ExportedSymbol> {
 	let mut exports = Vec::new();
 	for child in parsed.root.child_nodes() {
 		let declaration = match child.kind {
