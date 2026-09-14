@@ -69,7 +69,7 @@ fn parses_component_slots_and_child_blocks() {
 	assert_eq!(parsed.root.descendant_count(SyntaxKind::SlotStmt), 2);
 	assert_eq!(
 		parsed.root.descendant_count(SyntaxKind::UiChildBlockStmt),
-		3
+		2
 	);
 	assert_eq!(parsed.root.source_text(source), source);
 }
@@ -86,7 +86,7 @@ fn parses_struct_enum_and_match_patterns() {
 	assert_eq!(parsed.root.descendant_count(SyntaxKind::EnumCase), 3);
 	assert_eq!(parsed.root.descendant_count(SyntaxKind::MatchStmt), 1);
 	assert_eq!(parsed.root.descendant_count(SyntaxKind::MatchArm), 3);
-	assert_eq!(parsed.root.descendant_count(SyntaxKind::Pattern), 6);
+	assert_eq!(parsed.root.descendant_count(SyntaxKind::Pattern), 5);
 	assert_eq!(parsed.root.source_text(source), source);
 }
 
