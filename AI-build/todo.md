@@ -2,7 +2,7 @@
 
 ## Current phase
 
-`v0.1 language baseline accepted; compiler bootstrap Milestone 0B parser verification in progress.`
+`v0.1 language baseline accepted; compiler bootstrap Milestone 0B parser verified.`
 
 Current branch: `implementation/lossless-cst-parser`.
 
@@ -32,9 +32,9 @@ Current branch: `implementation/lossless-cst-parser`.
 
 Verification: GitHub Actions run `34813462150` at `7b7485fb035e870e0816306dc2c113f04289a2df` passed fmt/check/test/clippy. The local execution container still lacks Rust, so CI remains the executable verification environment for implementation branches.
 
-## Current — Milestone 0B lossless CST/parser
+## Completed — Milestone 0B lossless CST/parser
 
-Implementation is present on `implementation/lossless-cst-parser`; final all-green CI verification is pending.
+Implementation is present on `implementation/lossless-cst-parser` and the parser/CST verification gate has passed.
 
 - [x] Create `crates/voiles-syntax` after re-reading the current compiler/grammar contracts.
 - [x] Keep the parser/CST bootstrap zero-dependency; no external parser crate was required.
@@ -49,10 +49,12 @@ Implementation is present on `implementation/lossless-cst-parser`; final all-gre
 - [x] Add source round-trip and CST descendant span/count helpers for tests/tooling.
 - [x] Define deterministic recovery tests for malformed indentation/incomplete blocks.
 - [x] Correct parser fixtures so reserved keywords such as `state` are not used as ordinary identifiers.
-- [ ] Run `cargo fmt --all -- --check` on the final 0B branch head.
-- [ ] Run `cargo check --workspace` on the final 0B branch head.
-- [ ] Run `cargo test --workspace` on the final 0B branch head.
-- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings` on the final 0B branch head.
+- [x] Run `cargo fmt --all -- --check` on the verified 0B implementation state.
+- [x] Run `cargo check --workspace` on the verified 0B implementation state.
+- [x] Run `cargo test --workspace` on the verified 0B implementation state.
+- [x] Run `cargo clippy --workspace --all-targets -- -D warnings` on the verified 0B implementation state.
+
+Verification: GitHub Actions run `34816846408` at `10d431cf2c9339b0bb854878f1be3edacf71745e` passed fmt/check/test/clippy.
 
 ## Resolved — lexical / parser baseline
 
