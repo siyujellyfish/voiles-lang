@@ -606,9 +606,7 @@ mod tests {
 
 	#[test]
 	fn emits_indent_and_dedent_for_nested_blocks() {
-		let result = lex(
-			"if ready:\n\tstate x = 1\n\tif x:\n\t\tx += 1\n\treturn x\n",
-		);
+		let result = lex("if ready:\n\tstate x = 1\n\tif x:\n\t\tx += 1\n\treturn x\n");
 
 		assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 		assert_eq!(count_kind(&result.tokens, TokenKind::Indent), 2);
@@ -647,7 +645,10 @@ mod tests {
 		assert_eq!(count_kind(&result.tokens, TokenKind::Indent), 1);
 		assert_eq!(count_kind(&result.tokens, TokenKind::Dedent), 1);
 		assert_eq!(count_kind(&result.tokens, TokenKind::Newline), 2);
-		assert_eq!(result.tokens.last().map(|token| token.kind), Some(TokenKind::Eof));
+		assert_eq!(
+			result.tokens.last().map(|token| token.kind),
+			Some(TokenKind::Eof)
+		);
 	}
 
 	#[test]
