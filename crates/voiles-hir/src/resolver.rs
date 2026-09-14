@@ -82,7 +82,9 @@ impl<'source> Resolver<'source> {
 
 	fn resolve_node(&mut self, node: &SyntaxNode, scope: ScopeId) {
 		match node.kind {
-			SyntaxKind::ImportDecl | SyntaxKind::ExternImportDecl => self.resolve_import(node, scope),
+			SyntaxKind::ImportDecl | SyntaxKind::ExternImportDecl => {
+				self.resolve_import(node, scope)
+			}
 			SyntaxKind::ExportDecl => {
 				if let Some(declaration) = node.child_nodes().next() {
 					self.resolve_node(declaration, scope);
@@ -97,7 +99,9 @@ impl<'source> Resolver<'source> {
 			SyntaxKind::IfStmt => self.resolve_if(node, scope),
 			SyntaxKind::ForStmt => self.resolve_for(node, scope),
 			SyntaxKind::MatchStmt => self.resolve_match(node, scope),
-			SyntaxKind::ReturnStmt | SyntaxKind::ExprStmt => self.resolve_expression_children(node, scope),
+			SyntaxKind::ReturnStmt | SyntaxKind::ExprStmt => {
+				self.resolve_expression_children(node, scope)
+			}
 			SyntaxKind::LifecycleBlock => self.resolve_lifecycle(node, scope),
 			SyntaxKind::SlotStmt => self.resolve_slot(node, scope),
 			SyntaxKind::UiChildBlockStmt
@@ -115,7 +119,10 @@ impl<'source> Resolver<'source> {
 
 	fn resolve_import(&mut self, node: &SyntaxNode, scope: ScopeId) {
 		for child in node.child_nodes() {
-			if matches!(child.kind, SyntaxKind::ImportItem | SyntaxKind::NamespaceImport) {
+			if matches!(
+				child.kind,
+				SyntaxKind::ImportItem | SyntaxKind::NamespaceImport
+			) {
 				if let Some(token) = last_identifier(child) {
 					let name = self.text(token).to_owned();
 					self.declare(scope, name, SymbolKind::Import, token.span);
@@ -153,7 +160,12 @@ impl<'source> Resolver<'source> {
 			}
 			_ => return,
 		};
-		self.declare(scope, self.text(name_token).to_owned(), kind, name_token.span);
+		self.declare(
+			scope,
+			self.text(name_token).to_owned(),
+			kind,
+			name_token.span,
+		);
 	}
 
 	fn resolve_route_param(&mut self, node: &SyntaxNode, scope: ScopeId) {
@@ -365,7 +377,10 @@ impl<'source> Resolver<'source> {
 			return;
 		};
 		let (kind, valid) = match keyword {
-			Keyword::Init => (ScopeKind::LifecycleInit, self.scope(scope).kind == ScopeKind::Module),
+			Keyword::Init => (
+				ScopeKind::LifecycleInit,
+				self.scope(scope).kind == ScopeKind::Module,
+			),
 			Keyword::Mount => (
 				ScopeKind::LifecycleMount,
 				self.scope(scope).kind == ScopeKind::Component,
@@ -441,7 +456,8 @@ impl<'source> Resolver<'source> {
 						| SyntaxKind::NamedArgument
 						| SyntaxKind::PositionalArgument
 						| SyntaxKind::KeyClause
-				) {
+				)
+			{
 				self.resolve_expression(child, scope);
 			}
 		}
@@ -461,11 +477,7 @@ impl<'source> Resolver<'source> {
 				if left.kind == SyntaxKind::NameExpr {
 					if let Some(symbol) = resolved {
 						if !self.module.symbols[symbol.0].is_mutable() {
-							self.error(
-								"VHIR004",
-								"cannot assign to immutable binding",
-								left.span,
-							);
+							self.error("VHIR004", "cannot assign to immutable binding", left.span);
 						}
 					}
 				}
@@ -500,11 +512,7 @@ impl<'source> Resolver<'source> {
 				None
 			}
 			Lookup::Missing => {
-				self.error(
-					"VHIR003",
-					format!("unresolved name `{name}`"),
-					token.span,
-				);
+				self.error("VHIR003", format!("unresolved name `{name}`"), token.span);
 				None
 			}
 		};
@@ -633,7 +641,10 @@ impl<'source> Resolver<'source> {
 		match node.kind {
 			SyntaxKind::ImportDecl | SyntaxKind::ExternImportDecl => {
 				for child in node.child_nodes() {
-					if matches!(child.kind, SyntaxKind::ImportItem | SyntaxKind::NamespaceImport) {
+					if matches!(
+						child.kind,
+						SyntaxKind::ImportItem | SyntaxKind::NamespaceImport
+					) {
 						if let Some(token) = last_identifier(child) {
 							self.add_pending(scope, token, node.span.end);
 						}
@@ -713,7 +724,8 @@ impl<'source> Resolver<'source> {
 	}
 
 	fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
-		self.diagnostics.push(Diagnostic::error(code, message, span));
+		self.diagnostics
+			.push(Diagnostic::error(code, message, span));
 	}
 }
 
