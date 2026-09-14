@@ -1,14 +1,12 @@
 # Voiles State / Scope Model
 
-Status: `Draft` with accepted core semantics.
+Status: `Accepted v0.1 baseline`.
 
-This document defines the current direction for `const`, `state`, `shared`, lexical scope, scoped modules, component parameters/identity/lifecycle and slot lexical scope.
+此文件定義 `const` / `state` / `shared`、lexical scope、closure capture、scoped module identity/lifecycle、component identity/lifecycle 與 cleanup ownership。
 
 ## 1. Lexical scope
 
-`const`, `state` and `shared` names follow lexical scope for visibility.
-
-Name resolution searches from the innermost block outward. An inner declaration may shadow an outer declaration.
+Name resolution 從目前 lexical scope 向外尋找最近 declaration。Inner declaration 可 shadow outer declaration。
 
 ```voil
 state i = 1
@@ -21,9 +19,7 @@ fn count_2():
 	i += 1
 ```
 
-In `count()`, `i` resolves to the outer binding. In `count_2()`, the local `state i` shadows it.
-
-A declaration is not visible before its declaration point. Redeclaration in the same lexical scope is a compile error.
+Same-scope redeclaration 與 use-before-declaration 都是 compile error。
 
 ## 2. Binding kinds
 
@@ -33,13 +29,11 @@ A declaration is not visible before its declaration point. Redeclaration in the 
 const title = "Voiles"
 ```
 
-Semantics:
-
-- immutable runtime binding;
-- may be initialized from a runtime expression;
-- does not mean compile-time constant;
-- follows ordinary lexical scope;
-- cannot be reassigned.
+- immutable runtime binding；
+- initializer 可以是 runtime expression；
+- 不代表 compile-time constant；
+- lexical scope；
+- 不可 reassign。
 
 ### 2.2 `state`
 
@@ -47,15 +41,55 @@ Semantics:
 state count = 0
 ```
 
-Semantics:
+`state` 是 v0.1 唯一 ordinary mutable binding：
 
-- mutable binding;
-- reactive when observed by generated UI/runtime dependencies;
-- follows lexical scope;
-- storage lifetime is tied to its owning scope/module/component instance;
-- mutation keeps the declared/inferred type fixed.
+- mutable；
+- lexical scope；
+- storage lifetime 綁定 owning function/module/component environment；
+- mutation 後 type 固定；
+- 被 UI/runtime dependency 觀察時 compiler 才建立 reactive tracking；
+- 沒有 observer 的 function-local `state` 可 lower 成普通 mutable local。
 
-Function-local state is recreated for each function invocation unless later captured by an explicitly supported closure/lifetime mechanism.
+Voiles v0.1 不提供 `let` / `var` / `mut`。Algorithmic local mutation 仍寫 `state`：
+
+```voil
+fn sum(items: List<Int>) -> Int:
+	state total = 0
+
+	for item in items:
+		total += item
+
+	return total
+```
+
+### 2.3 `shared`
+
+```voil
+shared session = none
+```
+
+- mutable；
+- module top-level only；
+- one application-global cell per declaration identity；
+- across scoped module/component instances shared；
+- 只有被觀察時才生成 reactive tracking；
+- ordinary scoped-module cleanup 不 reset/destroy shared cell。
+
+Invalid：
+
+```voil
+component Counter():
+	shared i = 0
+```
+
+```voil
+fn test():
+	shared i = 0
+```
+
+## 3. Function invocation and closure capture
+
+普通 function-local `state` 每次 function invocation 建立自己的 cell：
 
 ```voil
 fn count_once() -> Int:
@@ -64,115 +98,180 @@ fn count_once() -> Int:
 	return i
 ```
 
-Each independent call begins from `5` and returns `6`.
+每次獨立 call 都從 `5` 開始。
 
-## 3. Scoped `.voil` module instances
+### 3.1 Closure capture
 
-Voiles `.voil` imports are not application-global JavaScript ESM-style singletons by default.
-
-Accepted rule:
-
-```text
-same importer scope + same resolved .voil path
-	-> same module instance
-
-different importer scope + same resolved .voil path
-	-> different module instance
-```
-
-Example:
+Voiles v0.1 支援 nested function/closure capture：
 
 ```voil
-# btn_state.voil
-state i = 0
+fn make_counter():
+	state i = 0
+
+	fn next() -> Int:
+		i += 1
+		return i
+
+	return next
 ```
 
-```voil
-# a.voil
-import btn_state from "./btn_state.voil"
-btn_state.i += 1
-# i == 1 in A's module instance
-```
+Rules：
 
-```voil
-# b.voil
-import btn_state from "./btn_state.voil"
-btn_state.i += 1
-# i == 1 in B's module instance
-```
+- captured `const` 保持 immutable；
+- captured `state` 指向原 cell，不做 value copy；
+- 同一 invocation 產生的多個 closure 若 capture 同一 `state`，共享該 cell；
+- escaping closure 會讓 function-local captured environment heap-promote，直到最後 closure reference unreachable；
+- closure capture 不改變 declared/inferred type。
 
-Different aliases do not create extra instances in the same importer scope:
+### 3.2 Owner-bound capture
 
-```voil
-import a from "./store.voil"
-import b from "./store.voil"
-```
+Component/module-owned binding 不能因 closure escape 而延長 owner lifecycle。
 
-`a` and `b` resolve to the same module instance in that importer scope.
-
-## 4. `shared`
-
-Sharing is declared on the variable, not on the module or import statement.
-
-```voil
-shared i = 1
-```
-
-Accepted semantics:
-
-- mutable by definition;
-- reactive when observed by UI/runtime dependencies;
-- one shared storage cell per declaration identity across all instances of the declaring `.voil` module within the application runtime;
-- no `shared import` form is required;
-- `shared` is legal only at module top level.
-
-Example:
-
-```voil
-# store.voil
-shared count = 0
-```
-
-```voil
-# a.voil
-import store from "./store.voil"
-store.count += 1
-# shared count == 1
-```
-
-```voil
-# b.voil
-import store from "./store.voil"
-store.count += 1
-# shared count == 2
-```
-
-The ordinary module instances remain different while `shared count` points to the same shared storage cell.
-
-Invalid nested declarations:
+例如 component callback 可以 capture component-local state：
 
 ```voil
 component Counter():
-	shared i = 0 # compile error
+	state count = 0
+
+	fn click():
+		count += 1
+
+	std.button(onclick=click)
 ```
+
+但把 `click` 寫入 application-global `shared` 或其他可證明比 component 活得更久的 storage 必須 compile error。
+
+Compiler 必須做 owner-lifetime escape check：owner cleanup/unmount 後不得留下仍可呼叫且能存取已釋放 owner-local state 的 closure。
+
+## 4. Scoped `.voil` module identity
+
+Ordinary `.voil` module 不是 application-global ESM singleton。
+
+```text
+same importer scope + same resolved path
+	-> same module instance
+
+different importer scope + same resolved path
+	-> different module instance
+```
+
+同 importer scope 中不同 alias 不 clone module instance：
 
 ```voil
-fn test():
-	shared i = 0 # compile error
+import * as a from "./store.voil"
+import * as b from "./store.voil"
 ```
+
+`a` / `b` 指向同一 scoped instance。
+
+## 5. Scoped module lifecycle
+
+Ordinary scoped module instance 由 importer scope 擁有。Module-owned resource 使用 module-top-level `init:` + nested `cleanup:`：
 
 ```voil
-if ready:
-	shared cache = none # compile error
+state connected = false
+
+init:
+	const socket = open_socket("/chat")
+	connected = true
+
+	cleanup:
+		socket.close()
 ```
 
-This avoids implicit static-local semantics and ambiguous recursive/closure/async lifetimes.
+Semantics：
 
-## 5. Component parameters and instance scope
+```text
+new module instance
+	-> dependencies initialize
+	-> init once
 
-Status: `Accepted`.
+same importer + same path
+	-> reuse instance
+	-> init does not rerun
 
-Component parameters are immutable input bindings.
+owner reactive update
+	-> preserve instance
+
+owner destruction
+	-> dependency modules cleanup recursively
+	-> this module cleanup once
+	-> ordinary module-local state release
+```
+
+`cleanup:` 只能出現在該 module `init:` 內，可 capture `init:` lexical locals。
+
+不同 alias 指向同一 instance 時，init/cleanup 都只執行一次。
+
+### 5.1 Dependency-first teardown
+
+```text
+Component
+└─ module A
+   └─ module B
+```
+
+Teardown：
+
+```text
+module B cleanup
+-> module A cleanup
+-> Component cleanup
+-> Component state release
+```
+
+所有 ordinary scoped dependency chain 都採 post-order teardown。
+
+### 5.2 Runtime import cycle
+
+v0.1 ordinary runtime module graph 必須是 DAG。
+
+```text
+A -> B -> C -> A
+```
+
+若 edge 需要 runtime initialization/state access，compiler 直接報 cyclic-runtime-import error。
+
+Type-only dependency cycle 可存在，前提是不建立 runtime ownership/init edge。這維持 deterministic init/cleanup order。
+
+## 6. Module top-level side effects
+
+Observable top-level work 必須位於 `init:`：
+
+```voil
+init:
+	const socket = open_socket("/chat")
+	cleanup:
+		socket.close()
+```
+
+普通 top-level declaration initializer 必須可分析為沒有 observable side effect。
+
+Logging、timer、subscription、WebSocket、DOM mutation、network startup 等都不得偷偷發生在 ordinary top-level initializer。
+
+這使 module tree-shaking 與 lifecycle ownership deterministic。
+
+## 7. `shared` resource restriction
+
+Ordinary `shared` cell 不負責 application-global external resource cleanup。
+
+```voil
+shared current_user = none
+```
+
+合法。
+
+這類 v0.1 不允許作為 ordinary shared initializer：
+
+```voil
+shared socket = open_socket("/chat") # compile error: cleanup-requiring resource
+```
+
+Application-lifetime external resource 應由 application-root owned scoped module 的 `init:/cleanup:` 管理；`shared` 可以保存共享 data/reference，但不能繞過 resource owner lifecycle。
+
+## 8. Component parameters and instance scope
+
+Component parameters 是 immutable input bindings：
 
 ```voil
 component UserBtn(
@@ -180,129 +279,83 @@ component UserBtn(
 	disabled: Bool = false
 ):
 	state count = 0
-	...
 ```
 
-Rules:
+- no default -> required；
+- default -> optional；
+- component call named-only；
+- defaults per new component instance evaluate；
+- initialization left-to-right；
+- default 只能引用前面已初始化 parameter。
 
-- no default -> required parameter;
-- default present -> optional parameter;
-- component invocation is named-argument-only;
-- defaults are evaluated independently for every new component instance;
-- parameter/default initialization is left-to-right;
-- a default may reference only earlier initialized parameters.
+每個 component invocation identity 有獨立 instance scope。
 
-Every component invocation identity creates an independent component instance scope when that identity first becomes active.
-
-```voil
-UserBtn(text="A")
-UserBtn(text="B")
-```
-
-Conceptually:
-
-```text
-UserBtn A
-	├─ text = "A"
-	└─ state count A
-
-UserBtn B
-	├─ text = "B"
-	└─ state count B
-```
-
-A component instance is also an importer scope for ordinary scoped `.voil` dependencies. Therefore ordinary stateful dependencies are isolated per component instance unless they use `shared`.
-
-### 5.1 Reactive parameter updates preserve instance state
-
-Status: `Accepted`.
-
-A reactive caller expression updates the immutable parameter value on the existing component instance instead of recreating the component.
+### 8.1 Reactive parameter update
 
 ```voil
 state name = "Alice"
 
-UserCard(
-	name=name
-)
-
+UserCard(name=name)
 name = "Bob"
 ```
 
-The same `UserCard` instance receives `"Bob"`; component-local `state` and ordinary imported module instances remain alive.
-
-Component-local state initializers run only for a new component instance identity.
+同一 component instance 收到新 immutable parameter value；component-local `state` 與 ordinary scoped dependency instances 保留。
 
 ```voil
 component Input(value: String):
 	state current = value
 ```
 
-`current` receives the initial `value` once. Later updates to the `value` parameter do not implicitly overwrite it.
+`current` 只在 new instance initialization 讀取當下 `value`；後續 prop update 不自動 reset。
 
-## 6. Component identity and lifetime
+## 9. Component identity
 
-Status: `Accepted`.
+### 9.1 Structural identity
 
-### 6.1 Structural identity
+非 repeated UI 的穩定 invocation structural position 決定 identity。Reactive value change 不 recreate instance。
 
-Outside repeated UI, a stable structural invocation position defines component identity.
-
-Reactive value/parameter changes at the same position preserve the same instance.
-
-### 6.2 Conditional lifetime
-
-Conditional branch removal is an unmount boundary.
+### 9.2 Conditional lifetime
 
 ```voil
 if show_profile:
-	UserCard(
-		name=user.name
-	)
+	UserCard(name=user.name)
 ```
 
 ```text
 false -> true
 	-> create instance
+	-> initialize dependencies
+	-> mount
 
 true -> false
-	-> unmount instance
-	-> release ordinary local state/dependency instances
+	-> dependencies cleanup post-order
+	-> component cleanup
+	-> release local state
 
 false -> true
-	-> create new instance
+	-> new instance
 ```
 
-Voiles does not implicitly keep branch-local component state hidden after the branch becomes inactive.
+Branch inactive 時不 hidden-retain local state。
 
-### 6.3 Keyed repeated UI
-
-Repeated UI that creates components requires explicit iteration identity:
+### 9.3 Repeated UI
 
 ```voil
 for user in users key user.id:
-	UserCard(
-		user=user
-	)
+	UserCard(user=user)
 ```
 
-Voiles does not silently use iteration index/list position as identity.
+- repeated component UI 必須 explicit key；
+- no implicit index identity；
+- v0.1 key type `String | Int`；
+- same key reorder -> preserve instance；
+- removed/changed key -> destroy old identity；
+- new key -> new instance；
+- duplicate key in one render evaluation -> deterministic runtime error。
 
-A component-instantiating repeated UI loop without `key` is a compile error in v0.1.
+Algorithmic loop 沒有 component identity 時不要求 `key`。
 
-Stable keys preserve component instances across reorder. Removed keys unmount their instances; new keys create new instances; changed keys replace identity.
-
-v0.1 keys are `String` or `Int`.
-
-Duplicate keys in the same repeated UI evaluation are runtime errors because uniqueness can depend on runtime data.
-
-Ordinary algorithmic loops that do not create repeated component UI do not require keys.
-
-## 7. Component mount/cleanup lifetime
-
-Status: `Accepted` for v0.1.
-
-Component-owned resources use `mount:` with an optional nested `cleanup:` block.
+## 10. Component mount/cleanup
 
 ```voil
 component Clock():
@@ -318,134 +371,35 @@ component Clock():
 	std.p(now)
 ```
 
-Lifecycle semantics:
+- new mounted instance -> `mount` once；
+- prop/state update -> no remount；
+- same-key reorder -> no remount；
+- `cleanup` only inside `mount`；
+- cleanup captures mount locals；
+- unmount -> cleanup once；
+- owned scoped modules cleanup before component cleanup。
 
-```text
-new mounted instance
-	-> mount runs exactly once
+v0.1 不提供 reactive `effect` / dependency array。
 
-reactive parameter/state update
-	-> same instance
-	-> mount does not rerun
+## 11. Module-level `state` in component-declaring modules
 
-keyed reorder with same key
-	-> same instance
-	-> mount does not rerun
-	-> cleanup does not run
-
-instance unmount
-	-> cleanup runs exactly once
-	-> instance-local state/dependencies released
-```
-
-`cleanup:` is valid only inside `mount:` and may capture lexical bindings from the enclosing mount block.
+合法。
 
 ```voil
-mount:
-	const subscription = store.subscribe(update)
+state module_counter = 0
 
-	cleanup:
-		subscription.close()
+component A():
+	...
+
+component B():
+	...
 ```
 
-This keeps resource creation and teardown in one lexical lifecycle scope without requiring the resource handle to be stored in component `state`.
+`module_counter` 屬於 containing scoped module instance，不是自動 component-local，也不是 application-global。若需要 per-component instance state，必須在 `component` block 內宣告；若需要跨 module instance application-global state，使用 `shared`。
 
-Conditional and keyed identity interact with lifecycle as follows:
+## 12. Slot lexical scope
 
-- conditional branch removal -> cleanup then unmount;
-- conditional re-entry -> new instance, then mount;
-- keyed reorder with unchanged key -> no mount/cleanup;
-- key removal/replacement -> cleanup old instance;
-- new key -> mount new instance.
-
-v0.1 does not define reactive `effect`, dependency arrays or automatic effect reruns.
-
-## 8. Scoped module initialization and cleanup
-
-Status: `Accepted` for v0.1 baseline.
-
-Ordinary scoped `.voil` module instances are owned by their importer scope. Module-owned resources use module-top-level `init:` with an optional nested `cleanup:` block.
-
-```voil
-# chat.voil
-state connected = false
-
-init:
-	const socket = open_socket("/chat")
-	connected = true
-
-	cleanup:
-		socket.close()
-```
-
-Accepted lifecycle semantics:
-
-```text
-new scoped module instance
-	-> init runs once
-
-same importer scope + same resolved path
-	-> reuse the same module instance
-	-> init does not rerun
-
-owner reactive update
-	-> existing module instance is preserved
-	-> init does not rerun
-
-owner/importer scope destruction
-	-> owned dependency modules cleanup recursively
-	-> this module cleanup runs once
-	-> ordinary module-local state is released
-```
-
-`cleanup:` in a module lifecycle is legal only inside the enclosing module `init:` block and may capture lexical bindings declared by that `init:` block.
-
-Different aliases that resolve to the same scoped module instance do not duplicate lifecycle execution: the instance initializes once and cleans up once.
-
-### 8.1 Dependency teardown order
-
-Status: `Accepted`.
-
-Scoped module ownership is torn down in dependency-first/post-order sequence.
-
-```text
-Component
-└─ module A
-   └─ module B
-```
-
-Teardown order:
-
-```text
-module B cleanup
--> module A cleanup
--> Component cleanup
--> Component unmount/state release
-```
-
-The same rule applies recursively through deeper ordinary scoped-module dependency chains. This makes dependency lifetime strictly nested inside owner lifetime.
-
-Dependencies initialize before owner lifecycle code can rely on them. Cyclic import initialization/cleanup remains a separate unresolved case because a cycle does not form a simple ownership tree.
-
-### 8.2 `shared` lifetime is independent
-
-Ordinary scoped-module cleanup does not destroy or reset `shared` storage.
-
-```voil
-# store.voil
-shared user = none
-state local_cache = none
-```
-
-Destroying one ordinary `store.voil` instance releases that instance's `local_cache`, but the application-global `shared user` cell remains alive for other module/component instances.
-
-A `shared` binding that owns an application-global external resource requires a separate application-global resource-lifetime policy. v0.1 ordinary module `cleanup:` must not infer ownership of such shared resources.
-
-## 9. Slot lexical scope
-
-Status: `Accepted`.
-
-Component child content is lexically owned by the caller even though the callee chooses the insertion point through `slot` outlets.
+Slot content 由 caller lexical environment 擁有；callee 只決定 insertion point。
 
 ```voil
 const username = "Alice"
@@ -454,89 +408,53 @@ Card():
 	std.p(username)
 ```
 
-If `Card` renders:
+`username` 在 caller scope resolution。Caller slot content 不會隱式看到 component locals；component 也不會透過 projection 取得 caller locals。
 
-```voil
-component Card():
-	container:
-		slot
-```
+Scoped-slot/slot parameter Deferred。
 
-then `username` still resolves in the caller scope.
-
-The same applies to named slots:
-
-```voil
-Modal():
-	slot header:
-		std.h2(username)
-```
-
-The component cannot implicitly access caller-local bindings through slot projection, and slot content cannot implicitly access component-local bindings.
-
-Any future scoped-slot parameters must explicitly define values crossing that boundary.
-
-## 10. State and identity summary
+## 13. Summary
 
 ```text
 const
-	immutable
-	lexical scope
-
-component parameter
-	immutable input
-	named-only invocation
-	default evaluated per new instance
-	parameter update preserves instance/local state
+	immutable lexical binding
 
 state
-	mutable
-	lexical scope
-	storage belongs to owning function/module/component instance
+	ordinary mutable lexical binding
+	reactive only when observed
+	no separate mut/let/var
 
 shared
-	mutable
-	module top-level only
-	one application-global cell per declaration identity
-	lifetime is independent from ordinary scoped-module cleanup
+	module-top-level application-global mutable cell
+	ordinary module cleanup does not destroy it
+	cannot directly own cleanup-requiring external resource
 
-scoped module instance
-	owned by importer scope
-	init once per new instance
-	cleanup once when owner lifetime ends
-	dependencies cleanup before importer/owner
+function closure
+	capture const/state lexically
+	state captured by cell
+	function-local captured env may outlive call
+	owner-bound captures cannot escape owner lifetime
 
-stable structural component position
-	-> preserve instance across reactive updates
+scoped module
+	owned by importer
+	init once
+	DAG runtime dependencies
+	dependency-first cleanup
 
-conditional removal
-	-> cleanup owned scoped modules dependency-first
-	-> cleanup component-owned mount resources
-	-> unmount
-	-> release ordinary instance-local state/dependencies
+component
+	structural/key identity
+	owned scoped modules
+	mount once / cleanup once
 
-conditional re-entry
-	-> new instance
-	-> initialize dependencies
-	-> mount
-
-repeated UI
-	-> explicit String/Int key required for component identity
-	-> same key preserves instance across reorder
-	-> removed/changed key unmounts old identity
-	-> new key creates/mounts new identity
-
-slot content
+slot
 	caller lexical scope
-	callee controls placement only
 ```
 
-## 11. Remaining decisions
+## Remaining runtime work
 
-- Whether `shared` is always reactive or reactivity is generated only when an observer exists. Current preference: compiler-generated reactivity only when observed.
-- Component import alias syntax.
-- Exact export/access syntax for non-component module bindings.
-- Slot parameter/content typing if a concrete use case requires it.
-- Cyclic import initialization/cleanup for scoped module instances and `shared` bindings.
-- Application-global resource lifecycle for resources intentionally stored in `shared` bindings.
-- Module top-level side-effect policy and whole-module tree-shaking boundary.
+Core v0.1 semantics above are Accepted。Implementation/prototype 尚需驗證：
+
+- precise closure escape-analysis diagnostics；
+- resource-type/effect classification used to reject cleanup-requiring `shared` initializers；
+- application bootstrap special surface；
+- HMR fingerprint/invalidation implementation；
+- foreign JS binding generator details。
