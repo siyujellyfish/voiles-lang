@@ -84,6 +84,8 @@ impl Parser<'_> {
 				Some(self.parse_binding())
 			}
 			TokenKind::Keyword(Keyword::Fn | Keyword::Async) => Some(self.parse_function()),
+			TokenKind::Keyword(Keyword::Struct) => Some(self.parse_struct()),
+			TokenKind::Keyword(Keyword::Enum) => Some(self.parse_enum()),
 			_ => None,
 		};
 
@@ -150,7 +152,7 @@ impl Parser<'_> {
 		SyntaxNode::new(SyntaxKind::FunctionDecl, children)
 	}
 
-	fn parse_parameter_list(&mut self) -> SyntaxNode {
+	pub(super) fn parse_parameter_list(&mut self) -> SyntaxNode {
 		let mut children = Vec::new();
 		self.expect(
 			&mut children,
@@ -263,7 +265,14 @@ impl Parser<'_> {
 	}
 
 	pub(super) fn parse_expression_statement(&mut self) -> SyntaxNode {
-		let mut children = vec![self.parse_expression().into()];
+		let expression = self.parse_expression();
+		if self.peek_significant_kind(0) == Some(TokenKind::Colon) {
+			let mut children = vec![expression.into()];
+			children.push(self.parse_block().into());
+			return SyntaxNode::new(SyntaxKind::UiChildBlockStmt, children);
+		}
+
+		let mut children = vec![expression.into()];
 		self.finish_simple_line(&mut children);
 		SyntaxNode::new(SyntaxKind::ExprStmt, children)
 	}
