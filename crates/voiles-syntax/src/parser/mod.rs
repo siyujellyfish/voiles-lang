@@ -185,8 +185,7 @@ impl<'tokens> Parser<'tokens> {
 			&& !matches!(
 				self.current_kind(),
 				TokenKind::Newline | TokenKind::Dedent | TokenKind::Eof
-			)
-		{
+			) {
 			self.bump_into(&mut children);
 		}
 		SyntaxNode::new(SyntaxKind::Error, children)
