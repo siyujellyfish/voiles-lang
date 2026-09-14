@@ -34,8 +34,7 @@ fn parses_function_parameters_defaults_and_return_type() {
 
 #[test]
 fn parses_namespace_and_extern_imports() {
-	let source =
-		"import * as store from \"./store.voil\"\nextern import * as lib from \"pkg\"\n";
+	let source = "import * as store from \"./store.voil\"\nextern import * as lib from \"pkg\"\n";
 	let parsed = parse(source);
 
 	assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
