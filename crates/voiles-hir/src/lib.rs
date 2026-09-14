@@ -4,7 +4,8 @@ mod model;
 mod resolver;
 
 pub use model::{
-	Capture, HirModule, HirResult, Reference, Scope, ScopeId, ScopeKind, Symbol, SymbolId, SymbolKind,
+	Capture, HirModule, HirResult, Reference, Scope, ScopeId, ScopeKind, Symbol, SymbolId,
+	SymbolKind,
 };
 
 use voiles_syntax::Parse;
