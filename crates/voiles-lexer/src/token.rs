@@ -87,10 +87,7 @@ pub enum TokenKind {
 impl TokenKind {
 	#[must_use]
 	pub const fn is_trivia(self) -> bool {
-		matches!(
-			self,
-			Self::Comment | Self::Whitespace | Self::LineBreak
-		)
+		matches!(self, Self::Comment | Self::Whitespace | Self::LineBreak)
 	}
 }
 
