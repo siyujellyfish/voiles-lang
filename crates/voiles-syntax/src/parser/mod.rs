@@ -82,6 +82,7 @@ impl<'tokens> Parser<'tokens> {
 			TokenKind::Keyword(Keyword::Const | Keyword::State | Keyword::Shared) => {
 				self.parse_binding()
 			}
+			TokenKind::Keyword(Keyword::Param) => self.parse_param(),
 			TokenKind::Keyword(Keyword::Fn | Keyword::Async) => self.parse_function(),
 			TokenKind::Keyword(Keyword::Component) => self.parse_component(),
 			TokenKind::Keyword(Keyword::Struct) => self.parse_struct(),
