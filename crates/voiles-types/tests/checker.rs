@@ -2,7 +2,10 @@ use voiles_hir::{BuiltinType, ModuleSource, resolve_project};
 use voiles_types::{Type, check_project};
 
 fn type_diagnostic(result: &voiles_types::TypeCheckResult, code: &str) -> bool {
-	result.diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+	result
+		.diagnostics
+		.iter()
+		.any(|diagnostic| diagnostic.code == code)
 }
 
 #[test]
@@ -81,7 +84,11 @@ fn accepts_none_for_optional_type_and_checks_builtin_generic_arity() {
 		"valid.voil",
 		"state name: String? = none\n",
 	)]);
-	assert!(valid_hir.diagnostics.is_empty(), "{:?}", valid_hir.diagnostics);
+	assert!(
+		valid_hir.diagnostics.is_empty(),
+		"{:?}",
+		valid_hir.diagnostics
+	);
 	let valid = check_project(&valid_hir.project);
 	assert!(valid.diagnostics.is_empty(), "{:?}", valid.diagnostics);
 
@@ -89,7 +96,11 @@ fn accepts_none_for_optional_type_and_checks_builtin_generic_arity() {
 		"invalid.voil",
 		"state names: List = none\n",
 	)]);
-	assert!(invalid_hir.diagnostics.is_empty(), "{:?}", invalid_hir.diagnostics);
+	assert!(
+		invalid_hir.diagnostics.is_empty(),
+		"{:?}",
+		invalid_hir.diagnostics
+	);
 	let invalid = check_project(&invalid_hir.project);
 	assert!(type_diagnostic(&invalid, "VTYPE006"));
 }
