@@ -2,9 +2,9 @@
 
 ## Current phase
 
-`v0.1 language baseline accepted; compiler bootstrap implementation started.`
+`v0.1 language baseline accepted; compiler bootstrap Milestone 0B parser verification in progress.`
 
-Current branch: `implementation/compiler-bootstrap`.
+Current branch: `implementation/lossless-cst-parser`.
 
 任何 merge 到 `main` 都使用 squash commit；未經明確授權不合併 `main`。
 
@@ -30,22 +30,29 @@ Current branch: `implementation/compiler-bootstrap`.
 - [x] Run `cargo clippy --workspace --all-targets -- -D warnings` on GitHub Actions.
 - [x] Fix the initial rustfmt CI failure and obtain a fully green compiler CI run.
 
-Verification: GitHub Actions run `34813462150` at `7b7485fb035e870e0816306dc2c113f04289a2df` passed fmt/check/test/clippy. The local execution container still lacks Rust, so CI remains the executable verification environment for this branch.
+Verification: GitHub Actions run `34813462150` at `7b7485fb035e870e0816306dc2c113f04289a2df` passed fmt/check/test/clippy. The local execution container still lacks Rust, so CI remains the executable verification environment for implementation branches.
 
-## Next — Milestone 0B lossless CST/parser
+## Current — Milestone 0B lossless CST/parser
 
-Milestone 0A verification gate is satisfied. Parser implementation has not started yet.
+Implementation is present on `implementation/lossless-cst-parser`; final all-green CI verification is pending.
 
-- [ ] Create `crates/voiles-syntax` after re-reading the current compiler/grammar contracts.
-- [ ] Select parser/CST dependencies only after checking their current official documentation; zero-dependency implementation remains acceptable if preferred.
-- [ ] Parse module/items while retaining lexer trivia/source spans.
-- [ ] Parse bindings, imports/exports, `fn`, component declarations/calls.
-- [ ] Parse accepted expression precedence and named/positional call rules.
-- [ ] Parse `if/else`, `for/in/key`, struct/enum/match baseline.
-- [ ] Parse structural HTML blocks and attributes.
-- [ ] Parse `mount/init/cleanup` lifecycle blocks.
-- [ ] Parse slot outlet/provision syntax.
-- [ ] Define deterministic recovery tests for malformed indentation/incomplete blocks.
+- [x] Create `crates/voiles-syntax` after re-reading the current compiler/grammar contracts.
+- [x] Keep the parser/CST bootstrap zero-dependency; no external parser crate was required.
+- [x] Parse module/items while retaining lexer trivia/source spans.
+- [x] Parse bindings, imports/exports, `fn`, component declarations/calls.
+- [x] Parse accepted expression precedence and named/positional call rules.
+- [x] Parse `if/else`, `for/in/key`, struct/enum/match baseline.
+- [x] Parse structural HTML blocks and attributes.
+- [x] Parse `mount/init/cleanup` lifecycle blocks.
+- [x] Parse slot outlet/provision syntax.
+- [x] Parse typed route `param name: Type` declarations.
+- [x] Add source round-trip and CST descendant span/count helpers for tests/tooling.
+- [x] Define deterministic recovery tests for malformed indentation/incomplete blocks.
+- [x] Correct parser fixtures so reserved keywords such as `state` are not used as ordinary identifiers.
+- [ ] Run `cargo fmt --all -- --check` on the final 0B branch head.
+- [ ] Run `cargo check --workspace` on the final 0B branch head.
+- [ ] Run `cargo test --workspace` on the final 0B branch head.
+- [ ] Run `cargo clippy --workspace --all-targets -- -D warnings` on the final 0B branch head.
 
 ## Resolved — lexical / parser baseline
 
