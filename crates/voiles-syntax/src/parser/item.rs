@@ -1,6 +1,6 @@
 use voiles_lexer::{Keyword, TokenKind};
 
-use crate::{SyntaxElement, SyntaxKind, SyntaxNode};
+use crate::{SyntaxKind, SyntaxNode};
 
 use super::Parser;
 
@@ -263,8 +263,7 @@ impl Parser<'_> {
 	}
 
 	pub(super) fn parse_expression_statement(&mut self) -> SyntaxNode {
-		let children: Vec<SyntaxElement> = vec![self.parse_expression().into()];
-		let mut children = children;
+		let mut children = vec![self.parse_expression().into()];
 		self.finish_simple_line(&mut children);
 		SyntaxNode::new(SyntaxKind::ExprStmt, children)
 	}
