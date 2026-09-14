@@ -99,15 +99,20 @@ The parser should produce a lossless CST before semantic resolution begins.
 
 ## 6. Verification gate
 
-Before this branch is proposed for merge, a Rust-capable environment must run at minimum:
+Required workspace verification:
 
 ```text
+cargo fmt --all -- --check
 cargo check --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-This implementation session could not execute those commands because the available execution container had no Rust toolchain and external DNS prevented installing official stable Rust. Therefore repository code must be treated as source-reviewed but not yet toolchain-verified until the commands above pass.
+Milestone 0A lexer code was verified successfully on GitHub Actions run `34813462150` at commit `7b7485fb035e870e0816306dc2c113f04289a2df`. The run completed all four gates successfully, including the lexer unit-test suite.
+
+The local execution container used during implementation still has no Rust toolchain and external DNS prevented installing one through rustup. GitHub Actions is therefore the current executable verification environment for this branch.
+
+Any later implementation commit must keep the same CI gates green before the branch is considered verified.
 
 ## 7. Non-goals for this bootstrap
 
