@@ -161,11 +161,7 @@ impl<'tokens> Parser<'tokens> {
 		}
 	}
 
-	pub(super) fn recover_line(
-		&mut self,
-		code: &'static str,
-		message: &'static str,
-	) -> SyntaxNode {
+	pub(super) fn recover_line(&mut self, code: &'static str, message: &'static str) -> SyntaxNode {
 		let mut children = Vec::new();
 		self.diagnostics
 			.push(Diagnostic::error(code, message, self.current_span()));
