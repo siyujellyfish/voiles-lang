@@ -7,6 +7,7 @@ pub enum SyntaxKind {
 	NamespaceImport,
 	ExportDecl,
 	BindingDecl,
+	ParamDecl,
 	FunctionDecl,
 	ComponentDecl,
 	StructDecl,
