@@ -78,7 +78,7 @@ pub fn resolve_project(sources: Vec<ModuleSource>) -> HirProjectResult {
 		.collect();
 
 	for index in 0..modules.len() {
-		let imports = collect_imports(
+		modules[index].imports = collect_imports(
 			ModuleId(index),
 			&modules[index],
 			&parses[index],
@@ -86,18 +86,16 @@ pub fn resolve_project(sources: Vec<ModuleSource>) -> HirProjectResult {
 			&export_tables,
 			&mut diagnostics,
 		);
-		modules[index].imports = imports;
 	}
 
 	for index in 0..modules.len() {
-		let references = collect_type_references(
+		modules[index].type_references = collect_type_references(
 			ModuleId(index),
 			&modules[index],
 			&parses[index],
 			&export_tables,
 			&mut diagnostics,
 		);
-		modules[index].type_references = references;
 	}
 
 	let dependencies = classify_dependencies(&modules);
@@ -266,12 +264,11 @@ fn collect_type_references(
 	diagnostics: &mut Vec<ProjectDiagnostic>,
 ) -> Vec<TypeReference> {
 	let mut references = Vec::new();
-	let generics = HashSet::new();
 	scan_type_references(
 		module_id,
 		module,
 		&parsed.root,
-		&generics,
+		&HashSet::new(),
 		export_tables,
 		diagnostics,
 		&mut references,
@@ -288,22 +285,21 @@ fn scan_type_references(
 	diagnostics: &mut Vec<ProjectDiagnostic>,
 	output: &mut Vec<TypeReference>,
 ) {
-	let mut owned_generics = None;
-	let active_generics = if node.kind == SyntaxKind::EnumDecl {
-		let mut next = generics.clone();
-		if let Some(parameters) = node
+	let mut enum_generics = generics.clone();
+	if node.kind == SyntaxKind::EnumDecl
+		&& let Some(parameters) = node
 			.child_nodes()
 			.find(|child| child.kind == SyntaxKind::GenericParameterList)
+	{
+		for token in parameters
+			.direct_tokens()
+			.filter(|token| token.kind == TokenKind::Identifier)
 		{
-			for token in parameters
-				.direct_tokens()
-				.filter(|token| token.kind == TokenKind::Identifier)
-			{
-				next.insert(token_text(&module.source, *token).to_owned());
-			}
+			enum_generics.insert(token_text(&module.source, *token).to_owned());
 		}
-		owned_generics = Some(next);
-		owned_generics.as_ref().expect("generic set was assigned")
+	}
+	let active_generics = if node.kind == SyntaxKind::EnumDecl {
+		&enum_generics
 	} else {
 		generics
 	};
@@ -383,23 +379,22 @@ fn resolve_type_path(
 		if let Some(import) = module.imports.iter().find(|import| {
 			module.hir.symbols[import.local_symbol.0].name == *name
 				&& import.kind == ImportBindingKind::Named
-		}) {
-			if let Some(target) = import.target_symbol {
-				let target_kind = export_tables[target.module.0]
-					.values()
-					.find(|export| export.target == target)
-					.map(|export| export.kind);
-				if target_kind.is_some_and(SymbolKind::is_type) {
-					return (Some(TypeTarget::Symbol(target)), Some(import.local_symbol));
-				}
-				diagnostics.push(project_error(
-					&module.source_id,
-					"VHIR011",
-					format!("`{name}` does not refer to a type"),
-					span,
-				));
-				return (None, Some(import.local_symbol));
+		}) && let Some(target) = import.target_symbol
+		{
+			let target_kind = export_tables[target.module.0]
+				.values()
+				.find(|export| export.target == target)
+				.map(|export| export.kind);
+			if target_kind.is_some_and(SymbolKind::is_type) {
+				return (Some(TypeTarget::Symbol(target)), Some(import.local_symbol));
 			}
+			diagnostics.push(project_error(
+				&module.source_id,
+				"VHIR011",
+				format!("`{name}` does not refer to a type"),
+				span,
+			));
+			return (None, Some(import.local_symbol));
 		}
 	}
 
@@ -475,7 +470,7 @@ fn classify_dependencies(modules: &[ProjectModule]) -> Vec<DependencyEdge> {
 			};
 			let all_type_only = group
 				.iter()
-				.all(|binding| binding_is_type_only(module, binding));
+				.all(|binding| binding_is_type_only(modules, module, binding));
 			dependencies.push(DependencyEdge {
 				from: module.id,
 				to: Some(target),
@@ -492,7 +487,11 @@ fn classify_dependencies(modules: &[ProjectModule]) -> Vec<DependencyEdge> {
 	dependencies
 }
 
-fn binding_is_type_only(module: &ProjectModule, binding: &ImportBinding) -> bool {
+fn binding_is_type_only(
+	modules: &[ProjectModule],
+	module: &ProjectModule,
+	binding: &ImportBinding,
+) -> bool {
 	let has_value_reference = module
 		.hir
 		.references
@@ -503,13 +502,9 @@ fn binding_is_type_only(module: &ProjectModule, binding: &ImportBinding) -> bool
 	}
 	match binding.kind {
 		ImportBindingKind::Named => binding.target_symbol.is_some_and(|target| {
-			let target_module = &module;
-			let _ = target_module;
-			module
-				.type_references
-				.iter()
-				.any(|reference| reference.through_import == Some(binding.local_symbol))
-				|| binding.target_symbol == Some(target)
+			modules[target.module.0].hir.symbols[target.symbol.0]
+				.kind
+				.is_type()
 		}),
 		ImportBindingKind::Namespace => module
 			.type_references
