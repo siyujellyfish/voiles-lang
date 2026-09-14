@@ -1,8 +1,8 @@
 # Voiles Compiler Implementation
 
-Status: `Implementation started`.
+Status: `Implementation active; Milestone 1A semantic HIR bootstrap implemented`.
 
-Branch: `implementation/lossless-cst-parser`
+Branch: `implementation/semantic-hir-bootstrap`
 
 ## 1. Toolchain baseline
 
@@ -16,20 +16,20 @@ Current implementation intentionally uses no third-party crates. External depend
 .voil source
 -> voiles-lexer
 -> lossless CST parser
--> syntax AST
+-> syntax AST façade
 -> resolved HIR
 -> typed HIR
 -> reactivity / identity / lifecycle lowering IR
 -> HTML / CSS / JavaScript codegen
 ```
 
-Initial crate direction:
+Current crate direction:
 
 ```text
-crates/voiles-lexer      # active, Milestone 0A verified
-crates/voiles-syntax     # active, Milestone 0B parser/CST verified
-crates/voiles-hir        # later
-crates/voiles-types      # later
+crates/voiles-lexer      # Milestone 0A verified
+crates/voiles-syntax     # Milestone 0B parser/CST verified; AST façade active
+crates/voiles-hir        # Milestone 1A single-module semantic resolution active
+crates/voiles-types      # Milestone 1B planned
 crates/voiles-lowering   # later
 crates/voiles-codegen    # later
 crates/voiles-cli        # later
@@ -77,7 +77,7 @@ Source bytes must be reconstructable from source-backed tokens plus synthetic st
 
 ## 5. Milestone 0B — lossless CST/parser
 
-Current implementation on `implementation/lossless-cst-parser` adds `crates/voiles-syntax` without third-party dependencies.
+`crates/voiles-syntax` provides the zero-dependency lossless CST/parser baseline.
 
 Implemented parser/CST surface:
 
@@ -93,11 +93,56 @@ Implemented parser/CST surface:
 - deterministic error nodes and line/block recovery while retaining source tokens;
 - CST descendant count/span helpers used by parser/tooling tests.
 
-Parser responsibility remains syntactic only. Name/component/slot resolution, scope legality, component API validation, type checking and HTML metadata validation stay in later HIR/type-checking stages.
+Parser responsibility remains syntactic only. Name/component/slot resolution, scope legality, component API validation, type checking and HTML metadata validation stay in later semantic/type stages.
 
-Reserved keywords remain lexer keywords and are not accepted as ordinary identifiers. Parser fixtures must therefore use non-keyword names; for example, a match function parameter uses `status` rather than the reserved binding keyword `state`.
+Reserved keywords remain lexer keywords and are not accepted as ordinary identifiers.
 
-## 6. Verification gate
+## 6. Milestone 1A — syntax AST façade + semantic HIR
+
+The current branch adds a zero-copy typed AST façade over the CST and `crates/voiles-hir` for single-module lexical/name resolution.
+
+Implemented AST/HIR surface:
+
+- typed CST wrappers for modules, declarations, parameters, blocks, lifecycle blocks and name expressions;
+- direct CST child/token traversal without losing lossless source representation;
+- explicit scope graph and stable `ScopeId` / `SymbolId` identities;
+- nearest lexical binding resolution and shadowing;
+- same-scope duplicate declaration diagnostics;
+- use-before-declaration diagnostics using pending declaration activation points;
+- unresolved-name diagnostics;
+- mutability validation for direct assignment to immutable bindings;
+- `shared` declaration module-top-level validation;
+- left-to-right function/component parameter default resolution;
+- function/component/loop/match-arm/block/lifecycle scopes;
+- nested function closure capture discovery;
+- lifecycle lexical-owner validation;
+- semantic references/captures retained in HIR model for later passes;
+- direct UI head identity remains deferred to component/html metadata resolution while lexical names in arguments and child bodies are resolved now.
+
+Semantic diagnostics introduced by 1A:
+
+```text
+VHIR001  duplicate declaration in same scope
+VHIR002  use before declaration
+VHIR003  unresolved name
+VHIR004  assignment to immutable binding
+VHIR005  shared declaration outside module top level
+VHIR006  lifecycle block in invalid lexical owner
+```
+
+Milestone 1A intentionally does not claim the following are implemented:
+
+- cross-module import/export symbol identity;
+- runtime import DAG/cycle analysis;
+- owner-bound closure escape analysis;
+- type resolution or type checking;
+- component argument/slot API validation;
+- html-base structural/event metadata resolution;
+- reactive/runtime lowering.
+
+These boundaries belong to 1B or later passes.
+
+## 7. Verification gate
 
 Required workspace verification:
 
@@ -108,23 +153,24 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Milestone 0A lexer code was verified successfully on GitHub Actions run `34813462150` at commit `7b7485fb035e870e0816306dc2c113f04289a2df`. The run completed all four gates successfully, including the lexer unit-test suite.
+Milestone 0A lexer code was verified successfully on GitHub Actions run `34813462150` at commit `7b7485fb035e870e0816306dc2c113f04289a2df`.
 
-Milestone 0B parser/CST code was verified successfully on GitHub Actions run `34816846408` at commit `10d431cf2c9339b0bb854878f1be3edacf71745e`. The run completed all four gates successfully: fmt, check, test and clippy.
+Milestone 0B final parser/CST branch head was verified successfully on GitHub Actions run `34816974670` at commit `9da619178c9ce2d5f337a057fabba732f485121a`.
 
-The local execution container used during implementation still has no Rust toolchain. GitHub Actions is therefore the current executable verification environment for this branch.
+Milestone 1A implementation code was verified successfully on GitHub Actions run `34819797481` at commit `4551b961b89a69ead482e49fd7117d6064d65e43`; fmt, check, test and clippy all passed. The final documentation head must keep the same four gates green before the branch is considered closed.
 
-Any later implementation commit must keep the same CI gates green before the branch is considered verified.
+The local execution container used during implementation still has no Rust toolchain. GitHub Actions remains the executable verification environment for implementation branches.
 
-## 7. Non-goals for the current parser bootstrap
+## 8. Next — Milestone 1B
 
-Not implemented in Milestone 0B:
+Recommended next slice:
 
-- syntax AST facade beyond the raw lossless CST;
-- semantic name resolution;
-- type checking;
-- reactive dependency lowering;
-- component/runtime lowering;
-- browser code generation;
-- Vite integration;
-- CSS integration.
+1. represent module source identity and runtime/type dependency edges;
+2. resolve named/namespace imports against exported symbol tables;
+3. validate component automatic exports and explicit non-component exports;
+4. reject runtime `.voil` dependency cycles while allowing type-only cycles;
+5. establish resolved type references over HIR;
+6. bootstrap primitive/literal/binding/function type checking in `voiles-types`;
+7. preserve current stable diagnostic + CI gates.
+
+Component/slot/html metadata validation can follow once cross-module symbol and type identity are available.
