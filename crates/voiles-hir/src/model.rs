@@ -201,7 +201,7 @@ pub enum BuiltinType {
 
 impl BuiltinType {
 	#[must_use]
-	pub const fn from_name(name: &str) -> Option<Self> {
+	pub fn from_name(name: &str) -> Option<Self> {
 		match name {
 			"Void" => Some(Self::Void),
 			"Bool" => Some(Self::Bool),
