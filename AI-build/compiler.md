@@ -27,7 +27,7 @@ Initial crate direction:
 
 ```text
 crates/voiles-lexer      # active, Milestone 0A verified
-crates/voiles-syntax     # active, Milestone 0B parser/CST
+crates/voiles-syntax     # active, Milestone 0B parser/CST verified
 crates/voiles-hir        # later
 crates/voiles-types      # later
 crates/voiles-lowering   # later
@@ -110,7 +110,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 Milestone 0A lexer code was verified successfully on GitHub Actions run `34813462150` at commit `7b7485fb035e870e0816306dc2c113f04289a2df`. The run completed all four gates successfully, including the lexer unit-test suite.
 
-Milestone 0B verification is in progress on `implementation/lossless-cst-parser`. Prior runs have confirmed parser compilation and most parser tests; the final branch head must pass all four gates before 0B is considered verified.
+Milestone 0B parser/CST code was verified successfully on GitHub Actions run `34816846408` at commit `10d431cf2c9339b0bb854878f1be3edacf71745e`. The run completed all four gates successfully: fmt, check, test and clippy.
 
 The local execution container used during implementation still has no Rust toolchain. GitHub Actions is therefore the current executable verification environment for this branch.
 
