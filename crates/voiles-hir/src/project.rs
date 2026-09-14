@@ -409,22 +409,21 @@ fn resolve_type_path(
 			module.hir.symbols[import.local_symbol.0].name == *namespace
 				&& import.kind == ImportBindingKind::Namespace
 		}) && let Some(target_module) = import.target_module
+			&& let Some(export) = export_tables[target_module.0].get(member)
 		{
-			if let Some(export) = export_tables[target_module.0].get(member) {
-				if export.kind.is_type() {
-					return (
-						Some(TypeTarget::Symbol(export.target)),
-						Some(import.local_symbol),
-					);
-				}
-				diagnostics.push(project_error(
-					&module.source_id,
-					"VHIR011",
-					format!("`{namespace}.{member}` does not refer to a type"),
-					span,
-				));
-				return (None, Some(import.local_symbol));
+			if export.kind.is_type() {
+				return (
+					Some(TypeTarget::Symbol(export.target)),
+					Some(import.local_symbol),
+				);
 			}
+			diagnostics.push(project_error(
+				&module.source_id,
+				"VHIR011",
+				format!("`{namespace}.{member}` does not refer to a type"),
+				span,
+			));
+			return (None, Some(import.local_symbol));
 		}
 	}
 
