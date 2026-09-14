@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/voiles-lexer", "crates/voiles-syntax"]
+members = ["crates/voiles-lexer", "crates/voiles-syntax", "crates/voiles-hir"]
 resolver = "3"
