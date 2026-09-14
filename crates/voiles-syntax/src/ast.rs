@@ -94,12 +94,14 @@ impl<'a> ExportDecl<'a> {
 
 impl BindingDecl<'_> {
 	pub fn keyword(self) -> Option<Keyword> {
-		self.syntax.direct_tokens().find_map(|token| match token.kind {
-			TokenKind::Keyword(keyword @ (Keyword::Const | Keyword::State | Keyword::Shared)) => {
-				Some(keyword)
-			}
-			_ => None,
-		})
+		self.syntax
+			.direct_tokens()
+			.find_map(|token| match token.kind {
+				TokenKind::Keyword(
+					keyword @ (Keyword::Const | Keyword::State | Keyword::Shared),
+				) => Some(keyword),
+				_ => None,
+			})
 	}
 
 	pub fn name_token(self) -> Option<Token> {
@@ -107,7 +109,9 @@ impl BindingDecl<'_> {
 	}
 
 	pub fn initializer(self) -> Option<&SyntaxNode> {
-		self.syntax.child_nodes().find(|node| is_expression_kind(node.kind))
+		self.syntax
+			.child_nodes()
+			.find(|node| is_expression_kind(node.kind))
 	}
 }
 
@@ -161,7 +165,9 @@ impl Parameter<'_> {
 	}
 
 	pub fn default_expression(self) -> Option<&SyntaxNode> {
-		self.syntax.child_nodes().find(|node| is_expression_kind(node.kind))
+		self.syntax
+			.child_nodes()
+			.find(|node| is_expression_kind(node.kind))
 	}
 }
 
@@ -185,12 +191,14 @@ impl ForStmt<'_> {
 
 impl LifecycleBlock<'_> {
 	pub fn keyword(self) -> Option<Keyword> {
-		self.syntax.direct_tokens().find_map(|token| match token.kind {
-			TokenKind::Keyword(keyword @ (Keyword::Init | Keyword::Mount | Keyword::Cleanup)) => {
-				Some(keyword)
-			}
-			_ => None,
-		})
+		self.syntax
+			.direct_tokens()
+			.find_map(|token| match token.kind {
+				TokenKind::Keyword(
+					keyword @ (Keyword::Init | Keyword::Mount | Keyword::Cleanup),
+				) => Some(keyword),
+				_ => None,
+			})
 	}
 
 	pub fn body(self) -> Option<Block<'_>> {
@@ -205,7 +213,7 @@ impl NameExpr<'_> {
 }
 
 #[must_use]
-pub fn token_text<'a>(source: &'a str, token: Token) -> &'a str {
+pub fn token_text(source: &str, token: Token) -> &str {
 	&source[token.span.start..token.span.end]
 }
 
@@ -245,7 +253,10 @@ mod tests {
 		let mut items = module.syntax().child_nodes();
 
 		let binding = BindingDecl::cast(items.next().expect("binding")).expect("binding ast");
-		assert_eq!(token_text(source, binding.name_token().expect("name")), "count");
+		assert_eq!(
+			token_text(source, binding.name_token().expect("name")),
+			"count"
+		);
 
 		let component =
 			ComponentDecl::cast(items.next().expect("component")).expect("component ast");
